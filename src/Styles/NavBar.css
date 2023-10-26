@@ -1,0 +1,32 @@
+header {
+    margin: 0px !important;
+    padding: 0px !important;
+}
+div.container {
+    margin: 0px !important;
+    padding: 0px;
+}
+
+.navbar {
+    justify-content: space-between !important;
+    padding-left: 5% !important;
+    padding-right: 5% !important;
+    width: 100vw !important;
+}
+
+.navbar-expand {
+    justify-content: space-between !important;
+}
+.navbar>.container {    
+    margin-left: 0px;
+    margin-right: 0px;
+    width: 100vw !important;
+    justify-content: space-between !important;
+}
+
+
+.navbar>.container>.navbar-nav {    
+    margin-left: 0px !important;
+    margin-right: 0px !important;
+    width: 100vw !important;
+}
