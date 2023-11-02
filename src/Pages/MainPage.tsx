@@ -1,21 +1,33 @@
 import React, { useState, useEffect } from 'react';
+import {Route, Routes, Navigate, BrowserRouter as Router} from 'react-router-dom';
 import Calendar from 'react-calendar';
+import Schedule from "./Schedule";
+import '../Styles/Table.css';
 import '../Styles/MainPage.css';
 import 'react-calendar/dist/Calendar.css';
 
 function MainPage() {
-    const [date, setDate] = useState(new Date());
-  
+    const multi:number[][] = [
+                               [0, 1, 0, 1, 1, 0],
+                               [1, 0, 0, 1, 0, 0],
+                               [0, 1, 1, 1, 1, 1],
+                               [0, 0, 1, 0, 0, 1],
+                               [0, 1, 0, 0, 1, 0],
+                               [1, 0, 1, 1, 0, 1],
+                               [0, 0, 1, 0, 0, 0],
+                               [1, 1, 1, 0, 1, 1],
+                               [0, 0, 1, 0, 0, 0],
+                               [1, 0, 0, 1, 0, 1],
+                               [1, 1, 0, 1, 1, 0],
+                               [1, 0, 0, 0, 0, 0],
+                               [0, 1, 1, 0, 1, 0]
+                             ];
     return (
       <div className ='app'>
         <h2 className ='text-center'>Office Hours Calendar</h2>
         <div className ='calendar-container'>
-          <Calendar className ='calendar' onChange = {setDate as any} value = {date}/>
+          <Schedule arr={multi} />
         </div>
-        <p className ='text-center'>
-          <span className ='bold'>Selected Date: </span>{' '}
-          {date.toDateString()}
-        </p>
       </div>
     );
   }
