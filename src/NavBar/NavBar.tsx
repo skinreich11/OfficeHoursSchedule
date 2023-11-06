@@ -12,6 +12,7 @@ function NavBar() {
                     <Nav className = "me-auto">
                         <Nav.Link href = "./">Home</Nav.Link>
                         <Nav.Link href = "./login">Login</Nav.Link>
+                        <Nav.Link href = "./CreateClass">CreateClass</Nav.Link>
                     </Nav>
                 </Container>
             </Navbar>
