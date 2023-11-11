@@ -5,7 +5,8 @@ from flask import Flask, request, jsonify
 # from .getSchedules import * #fucking jank ass python import
 import psycopg2
 import json
-
+# from match_schedules import ScheduleBuildAndMatch
+import numpy
 app = Flask(__name__)
 
 
@@ -62,9 +63,9 @@ def stringEmptySchedule():
 
 #returns the schedules of a class
 def getSchedules(classid, teacher):
-    command = "select"
-    if(teacher == "true"):
-        command += " userClasses.email,"
+    command = "select "
+    # if(teacher == "true"):
+    command += " userClasses.email,"
     command += buildScheduleQuery() + " from userClasses join userSchedule on userClasses.email=userSchedule.email where classID=" + str(classid) + " and role=" + teacher + ";"
     cur = readConnect()
     cur.execute(command)
@@ -91,6 +92,12 @@ def getClassSchedule(classID):
     cur.execute("select " + buildScheduleQuery() + " from classhours where classid=" + str(classID) + ";")
     return cur.fetchone()
 
+#returns the class counter file used for the algorithm
+def getClassCounter(classID):
+    cur = readConnect()
+    cur.execute("select " + buildScheduleQuery() + " from classcounter where classid=" + str(classID) + ";")
+    return cur.fetchone()
+
 # returns a class's office hours from the cache
 def getClassOfficeHours(classID):
     cur = readConnect()
@@ -104,7 +111,7 @@ def setSchedule(table, field, key, schedule):
     # for i in range(1, 60):
     #     command += "," + str(schedule[i])
     # command += ");"
-    command = "update " + table + "set d1h1=" + str(schedule[0])
+    command = "update " + table + " set d1h1=" + str(schedule[0])
     x = 1
     for i in range(2,13):
         command += ",d1h" + str(i) + "=" + str(schedule[x])
@@ -113,6 +120,7 @@ def setSchedule(table, field, key, schedule):
         for y in range(1, 13):
             command += ",d" + str(i) + "h" + str(y) + "=" + str(schedule[x])
     command += " where " + field + "=" + key + ";"
+    # print(command)
     con = writeConnect()
     cur = con.cursor()
     # cur.execute("delete from userschedule where " + field + "=" + key + ";")
@@ -136,6 +144,10 @@ def setClassSchedule(classID, schedule):
 #UNTESTED
 def setClassOfficeHours(classID, schedule):
     setSchedule("classofficehourscache", "classid", str(classID), schedule)
+    return
+
+def setClassCounter(classID, schedule):
+    setSchedule("classcounter", "classid", str(classID), schedule)
     return
 
 #adds a user to the databases
@@ -251,6 +263,108 @@ def deleteClass(classID):
     cur.execute("delete from classes where classID=" + str(classID) + ";")
     con.commit()
     return 0
+
+# ALGORITHM STUFF
+
+class ScheduleBuildAndMatch:
+    def __init__(self, teacher_array, num_office_hours):
+        #Below are constants matched with states of time slots on schedule
+        self.busy: int = 0
+        self.free: int = 1
+        self.lecture: int = 2
+        self.assignment: int = 3
+        self.exam: int = 4
+        self.office_hours: int = 5
+        
+        self.number_office_hours_per_day = num_office_hours #number of office hours per day
+        self.office_hours = [[0] *12 for _ in range(5)] #reset optimal office hours each time to properly overwrite data. Uses persitant counter.txt to set timeslots
+        self.teacher_hours = teacher_array
+        # self.fetch_counter() #set counter to counter.txt (converts txt to array)
+        #set teacher schedule to teacher_schedule.txt (converts txt to array)
+    
+    #This is the algorithm. Uses numpy argpartition to find indexes of the n(number of office hours per day) highest elements in each day of the week of counter.txt
+    def update_office_hours(self, counter):
+        # self.fetch_counter() 
+        self.match_with_teacher(counter)
+        for i in range(5): #for each day of the week
+            day_hours = numpy.argpartition(counter[i], -self.number_office_hours_per_day)[-self.number_office_hours_per_day:] #find indexes of n highest elements
+            for j in range(self.number_office_hours_per_day): #for number of office hours per day
+                self.office_hours[i][day_hours[j]] = 5   #set office_hours array at that timeslot of the n highest counter indicies to 5 (correlates to office hours)
+        # self.save_office_hours() #save this array into office_hours.txt     
+        return self.office_hours  
+           
+    #This is the function that increments counter based on teacher and student schedule
+    def match_with_teacher(self, student_schedule):
+        for i in range(5):#for each day of the week
+            for j in range(12):#for each timeslot of each day
+                if(self.teacher_hours[i][j] == 0): #if teacher and student are both available at a timeslot
+                    student_schedule[i][j] = 0 #increment counter by 1 at this timeslot
+        # self.save_counter() #save counter into counter.txt
+    
+    def fetchCounter(self):
+        return self.counter
+
+def convertToArray(schedule):
+    scheduleArray = [[None, [[0] *12 for _ in range(5)]]]
+    for k in range(len(schedule)):
+        if(k > 0):
+            scheduleArray.append([None, [[0] *12 for _ in range(5)]])
+        scheduleArray[k][0] = str(schedule[k][0])
+        index = 1
+        for i in range(5):
+            for j in range(12):
+                scheduleArray[k][1][i][j] = schedule[k][index]
+                index += 1
+    return scheduleArray
+
+def convertToArrayCounter(schedule):
+    array = [[],[],[],[],[]]
+    i = 0
+    for x in range(0, 5):
+        for y in range(0, 12):
+            array[x].append(schedule[i])
+            i = i+1
+            # print(i)
+    # print(schedule[59])
+    return array
+
+def convertArrayToTuple(schedule):
+    list = []
+    for x in range(5):
+        for y in range(12):
+            list.append(schedule[x][y])
+    return list
+
+def FindOptimalOfficeHours(classID, numberOfficeHours):
+    student_hours = genCounter(convertToArray(getStudentSchedules(classID)))
+    teacher_hours = genCounter(convertToArray(getTeacherSchedules(classID)))
+    # total_teacher_hours = [[0] * 12 for _ in range (5)]
+    # for i in range(5):
+    #     for j in range(12):
+    #         total_teacher_hours[i][j] = 0
+    #         for k in range(len(teacher_hours)):
+    #             if(teacher_hours[k][1][i][j] == 1):
+    #                 total_teacher_hours[i][j] = 1
+    #                 break
+    BuildSchedule = ScheduleBuildAndMatch(teacher_hours, numberOfficeHours)
+    return BuildSchedule.update_office_hours(student_hours)
+
+def buildEmptyCounter():
+    counter = []
+    for x in range(5):
+        counter.append([])
+        for y in range(12):
+            counter[x].append(0)
+    return counter
+
+def genCounter(schedules):
+    counter = buildEmptyCounter()
+    for z in range(len(schedules)):
+        for x in range(5):
+            for y in range(12):
+                counter[x][y] += (int)(schedules[z][1][x][y])
+    return counter
+
 
 
 # BACKEND TO FRONTEND COMMUNICATION BEGINS HERE
@@ -392,8 +506,10 @@ def C():
                     ret['name'] = True
                 else:
                     ret['name'] = False
-            if('officehours' in req): # do we need this or should it instead just trigger the recalculate function which handles updating on its own
-                if(setClassOfficeHours(req['id'], req['officehours']) == 0):
+            if('officehours' in req): # PART THAT THE ALGORITHM RUNS AT 
+                balls = convertArrayToTuple(FindOptimalOfficeHours(req['id'], 4))
+                print(balls)
+                if(setClassOfficeHours(req['id'], balls) == 0):
                     ret['officehours'] = True
                 else:
                     ret['officehours'] = False
