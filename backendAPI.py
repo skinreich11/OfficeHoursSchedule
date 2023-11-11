@@ -507,9 +507,9 @@ def C():
                 else:
                     ret['name'] = False
             if('officehours' in req): # PART THAT THE ALGORITHM RUNS AT 
-                balls = convertArrayToTuple(FindOptimalOfficeHours(req['id'], 4))
-                print(balls)
-                if(setClassOfficeHours(req['id'], balls) == 0):
+                #constant that controls how many office hours per day are generated
+                OFFICEHOURSSLOTS = 4
+                if(setClassOfficeHours(req['id'], convertArrayToTuple(FindOptimalOfficeHours(req['id'], OFFICEHOURSSLOTS))) == 0):
                     ret['officehours'] = True
                 else:
                     ret['officehours'] = False
