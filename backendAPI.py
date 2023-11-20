@@ -83,13 +83,18 @@ def containsForbidden(string):
 
 #returns the schedules of a class
 def getSchedules(classid, teacher):
+    if(not checkExists("classes", "classid=" + str(classid))):
+        return -1
     command = "select "
     # if(teacher == "true"):
     command += " userClasses.email,"
     command += buildScheduleQuery() + " from userClasses join userSchedule on userClasses.email=userSchedule.email where classID=" + str(classid) + " and role=" + teacher + ";"
     cur = readConnect()
     cur.execute(command)
-    return cur.fetchall()
+    ret = cur.fetchall()
+    if(ret == None):
+        return []
+    return ret
 
 #returns all the student schedules of a class
 def getStudentSchedules(classid):
@@ -104,19 +109,28 @@ def getUserSchedule(email):
     command = "select " + buildScheduleQuery() + " from userSchedule where email='" + email + "';"
     cur = readConnect()
     cur.execute(command)
-    return cur.fetchone()
+    ret = cur.fetchone()
+    if(ret == None):
+        return -1
+    return ret
 
 #returns a class's schedule/hours
 def getClassSchedule(classID):
     cur = readConnect()
     cur.execute("select " + buildScheduleQuery() + " from classhours where classid=" + str(classID) + ";")
-    return cur.fetchone()
+    ret = cur.fetchone()
+    if(ret == None):
+        return -1
+    return ret
 
 # returns a class's office hours from the cache
 def getClassOfficeHours(classID):
     cur = readConnect()
     cur.execute("select " + buildScheduleQuery() + " from classofficehourscache where classid=" + str(classID) + ";")
-    return cur.fetchone()
+    ret = cur.fetchone()
+    if(ret == None):
+        return -1
+    return ret
 
 #swaps out a schedule
 #UNTESTED
@@ -217,14 +231,17 @@ def getUserName(email):
     cur.execute("select name from users where email='" + email + "';")
     ret = cur.fetchone()
     if(ret == None):
-        return ""
+        return -1
     return ret[0]
 
 #returns all the details of a user needed to assemble their profile
 def getUserDetails(email):
     cur = readConnect()
     cur.execute("select users.email,users.name," + buildJoinedScheduleQuery("userschedule") + " from users join userschedule on users.email=userschedule.email where users.email='" + email + "';")
-    return cur.fetchone()
+    ret = cur.fetchone()
+    if(ret == None):
+        return -1
+    return ret
 
 # returns the name of a user
 # returns an empty string on failure
@@ -233,13 +250,16 @@ def getClassName(classID):
     cur.execute("select name from classes where classid=" + str(classID) + ";")
     ret = cur.fetchone()
     if(ret == None):
-        return ""
+        return -1
     return ret[0]
 
 def getClassDetails(classID):
     cur = readConnect()
     cur.execute("select classes.classid,classes.name," + buildJoinedScheduleQuery("classhours") + "," + buildJoinedScheduleQuery("classofficehourscache") + " from classes join classhours on classes.classid=classhours.classid join classofficehourscache on classes.classid=classofficehourscache.classid where classes.classid="+ str(classID) +";")
-    return cur.fetchone()
+    ret = cur.fetchone()
+    if(ret == None):
+        return -1
+    return ret
 
 #deletes a user from all relevent tables
 #UNTESTED
@@ -256,7 +276,7 @@ def deleteUser(email):
 
 #deletes a class from all relevent tables
 def deleteClass(classID):
-    if(not checkExists("classes", "classid=" + classID)):
+    if(not checkExists("classes", "classid=" + str(classID))):
         return -1
     con = writeConnect()
     cur = con.cursor()
@@ -273,17 +293,17 @@ def joinClass(email, classID, role):
         return -1
     if(not checkExists("classes", "classid=" + str(classID))):
         return -1
+    if(checkExists("userclasses", "email='" + email + "' and classid=" + str(classID))):
+        return -1
     con = writeConnect()
     cur = con.cursor()
-    cur.execute("insert into userclasses values ('" + email + "'," + str(classID) + "," + role + ");")
+    cur.execute("insert into userclasses values ('" + email + "'," + str(classID) + "," + str(role) + ");")
     con.commit()
     return 0
 
 #removes a user from a class
 def leaveClass(email, classID):
-    if(not checkExists("users", "email='" + email + "'")):
-        return -1
-    if(not checkExists("classes", "classid=" + str(classID))):
+    if(not checkExists("userclasses", "email='" + email + "' and classid=" + str(classID))):
         return -1
     con = writeConnect()
     cur = con.cursor()
@@ -297,20 +317,31 @@ def changeMemberRole(email, classID, role):
         return -1
     con = writeConnect()
     cur = con.cursor()
-    cur.execute("update userclasses set role=" + role + " where email='" + email + "' and classid=" + str(classID) + ";")
+    cur.execute("update userclasses set role=" + str(role) + " where email='" + email + "' and classid=" + str(classID) + ";")
+    con.commit()
     return 0
 
 #returns the classes a member is in and their role in them
 def getUserClasses(email):
+    if(not checkExists("users", "email='" + email + "'")):
+        return -1
     cur = readConnect()
     cur.execute("select classid,role from userclasses where email='" + email +"';")
-    return cur.fetchall()
+    ret = cur.fetchall()
+    if(ret == None):
+        return []
+    return ret
 
 #returns all the members of a class and their role in it
 def getClassMembers(classID):
+    if(not checkExists("classes", "classid=" + str(classID))):
+        return -1
     cur = readConnect()
-    cur.execute("select email,role from userclasses where classid=" + classID + ";")
-    return cur.fetchall()
+    cur.execute("select email,role from userclasses where classid=" + str(classID) + ";")
+    ret = cur.fetchall()
+    if(ret == None):
+        return []
+    return ret
 
 # ALGORITHM STUFF
 
@@ -468,25 +499,25 @@ def U():
             match req['data']:
                 case 'profile':
                     details = (getUserDetails(req['email']))
-                    if(details == None):
+                    if(details == -1):
                         return {"status":-1}
                     return {
                         "email": details[0],
                         "name": details[1],
-                        "schedule":(details[2:15], details[15:27], details[27:39], details[39:51], details[51:62]),
+                        "schedule":(details[2:14], details[14:26], details[26:38], details[38:50], details[50:62]),
                         "status":0
                         }
                 case 'schedule':
                     details = getUserSchedule(req['email'])
-                    if(details == None):
+                    if(details == -1):
                         return {"status":-1}
                     return {
-                        "schedule":(details[0:13], details[13:25], details[25:37], details[37:49], details[49:60]),
+                        "schedule":(details[0:12], details[12:24], details[24:36], details[36:48], details[48:60]),
                         "status":0
                         }
                 case 'name':
                     details = getUserName(req['email'])
-                    if(details == None):
+                    if(details == -1):
                         return {"status":-1}
                     return {
                         "name":details,
@@ -504,7 +535,10 @@ def U():
             ret = {"status":0}
             if "schedule" in req:
                 #ADD req["schedule"] integer type check?
-                if(setUserSchedule(req['email'], convertArrayToTuple(req['schedule'])) == 0):
+                if("schedule" not in req or len(req["schedule"]) != 5 or len(req["schedule"][0]) != 12):
+                    ret["schedule"] = -1
+                    ret["status"] = -1
+                elif(setUserSchedule(req['email'], convertArrayToTuple(req['schedule'])) == 0):
                     ret['schedule'] = 0
                 else:
                     ret['schedule'] = -1
@@ -538,18 +572,18 @@ def C():
             match req['data']:
                 case 'all':
                     details = getClassDetails(req['id'])
-                    if(details == None):
+                    if(details == -1):
                         return {"status":-1}
                     return {
                         "classid": details[0],
                         "name": details[1],
-                        "classhours":(details[2:15], details[15:27], details[27:39], details[39:51], details[51:63]),
-                        "officehours":(details[63:75], details[75:87], details[87:99], details[99:111], details[111:123]),
+                        "schedule":(details[2:14], details[14:26], details[26:38], details[38:50], details[50:62]),
+                        "officehours":(details[62:74], details[74:86], details[86:98], details[98:110], details[110:122]),
                         "status":0
                     }
                 case 'name':
                     details = getClassName(req['id'])
-                    if(details == None):
+                    if(details == -1):
                         return {"status":-1}
                     return {
                     "name":details,
@@ -557,18 +591,18 @@ def C():
                     }
                 case 'schedule':
                     details = getClassSchedule(req['id'])
-                    if(details == None):
+                    if(details == -1):
                         return {"status":-1}
                     return {
-                        "schedule":(details[0:13], details[13:25], details[25:37], details[37:49], details[49:60]),
+                        "schedule":(details[0:12], details[12:24], details[24:36], details[36:48], details[48:60]),
                         "status":0
                         }
                 case 'officehours':
                     details = getClassOfficeHours(req['id'])
-                    if(details == None):
+                    if(details == -1):
                         return {"status":-1}
                     return {
-                        "schedule":(details[0:13], details[13:25], details[25:37], details[37:49], details[49:60]),
+                        "officehours":(details[0:12], details[12:24], details[24:36], details[36:48], details[48:60]),
                         "status":0
                         }
                 case _:
@@ -599,16 +633,20 @@ def C():
                     ret["status"] = -1
             if('officehours' in req): # PART THAT THE ALGORITHM RUNS AT 
                 #constant that controls how many office hours per day are generated
-                OFFICEHOURSSLOTS = 4
-                hours = FindOptimalOfficeHours(req['id'], OFFICEHOURSSLOTS)
-                if(setClassOfficeHours(req['id'], convertArrayToTuple(hours)) == 0):
-                    ret['officehours'] = hours
+                if(checkExists("classes", "classid=" + str(req["id"]))):
+                    OFFICEHOURSSLOTS = 4
+                    hours = FindOptimalOfficeHours(req['id'], OFFICEHOURSSLOTS)
+                    if(setClassOfficeHours(req['id'], convertArrayToTuple(hours)) == 0):
+                        ret['officehours'] = hours
+                    else:
+                        ret['officehours'] = -1
+                        ret["status"] = -1
                 else:
                     ret['officehours'] = -1
                     ret["status"] = -1
             return ret
         case 'DELETE':
-            return {"status":deleteClass(ret['id'])}
+            return {"status":deleteClass(req['id'])}
         case _:
             return {"status":-2}
 
@@ -623,24 +661,22 @@ def UC():
     match request.method:
         case "GET":
             details = getUserClasses(req["email"])
-            if(details == None):
+            if(details == -1):
                 return {"status":-1}
             return {
                 "classes":details,
                 "status":0
             }
         case "POST":
-            if("id" not in req | "role" not in req):
+            if("id" not in req or "role" not in req):
                 return {"status":-2}
-            if(not isinstance(req['id'], int)):
-                return {"status":-1}
-            if(not isinstance(req['role'], bool)):
+            if(not isinstance(req['id'], int) or not isinstance(req['role'], bool)):
                 return {"status":-1}
             return {"status":joinClass(req["email"], req["id"], req["role"])}
         case "PATCH":
-            if("id" not in req | "role" not in req):
+            if("id" not in req or "role" not in req):
                 return {"status":-2}
-            if(not isinstance(req['id'], int)):
+            if(not isinstance(req['id'], int) or not isinstance(req['role'], bool)):
                 return {"status":-1}
             return {"status":changeMemberRole(req["email"], req["id"], req["role"])}
         case "DELETE":
@@ -668,11 +704,8 @@ def CS():
     match request.method:
         case "GET":
             details = getClassMembers(req["id"])
-            # if(details == None): #if you have no members then its probably better to recieve a None rather than a 0 length array
-            #     return {
-            #         "members":[],
-            #         "status":0
-            #         }
+            if(details == -1):
+                return {"status":-1}
             return {
                 "members":details,
                 "status":0
@@ -687,3 +720,105 @@ def CS():
 #     print("fish")
 # except:
 #     print("balls")
+
+
+# TEST getSchedules Functions
+if(True):
+    UR = "TESTDUMMY"
+    CL = 65535
+    print("STARTING DATABASE FUNCTIONS TEST")
+    deleteUser(UR)
+    deleteClass(CL)
+    # TEST IF NO USER
+    if(True):
+        assert(checkExists("users", "email='" + UR + "'") == False)
+        assert(deleteUser(UR) == -1)
+        assert(getUserSchedule(UR) == -1)
+        assert(setUserSchedule(UR, emptySchedule()) == -1)
+        assert(getUserName(UR) == -1)
+        assert(setUserName(UR, "TEST") == -1)
+        assert(getUserDetails(UR) == -1)
+        assert(getUserClasses(UR) == -1)
+        assert(addUser(UR, "TESTPASSWORD") == 0)
+    # TEST IF USER
+    if(True):
+        assert(addUser(UR, "TESTPASSWORD") == -1)
+        assert(checkExists("users", "email='" + UR + "'") == True)
+        assert(len(getUserSchedule(UR)) == 60)
+        assert(setUserSchedule(UR, emptySchedule()) == 0)
+        assert(getUserName(UR) == "")
+        assert(setUserName(UR, "TEST") == 0)
+        assert(getUserName(UR) == "TEST")
+        assert(len(getUserDetails(UR)) == 62)
+        assert(len(getUserClasses(UR)) >= 0)
+        assert(deleteUser(UR) == 0)
+    # TEST IF NO CLASS
+    if(True):
+        assert(checkExists("classes", "classid=" + str(CL)) == False)
+        assert(deleteClass(CL) == -1)
+        assert(getClassSchedule(CL) == -1)
+        assert(setClassName(CL,"TEST") == -1)
+        assert(getClassName(CL) == -1)
+        assert(setClassSchedule(CL, emptySchedule()) == -1)
+        assert(setClassOfficeHours(CL, emptySchedule()) == -1)
+        assert(getClassOfficeHours(CL) == -1)
+        assert(getClassDetails(CL) == -1)
+        assert(getClassMembers(CL) == -1)
+        assert(addClass(CL, "TEST") == 0)
+    # TEST IF CLASS
+    if(True):
+        addClass(CL, "TEST")
+        assert(addClass(CL, "TEST") == -1)
+        assert(checkExists("classes", "classid=" + str(CL)) == True)
+        assert(len(getClassSchedule(CL)) == 60)
+        assert(getClassName(CL) == "TEST")
+        assert(setClassName(CL,"TEST1") == 0)
+        assert(getClassName(CL) == "TEST1")
+        assert(setClassSchedule(CL, emptySchedule()) == 0)
+        assert(setClassOfficeHours(CL, emptySchedule()) == 0)
+        assert(len(getClassOfficeHours(CL)) == 60)
+        assert(len(getClassDetails(CL)) == 122)
+        assert(len(getClassMembers(CL)) >= 0)
+        assert(deleteClass(CL) == 0)
+    # TEST IF NO USER AND NO CLASS
+    if(True):
+        deleteUser(UR)
+        deleteClass(CL)
+        assert(joinClass(UR, CL, True) == -1)
+        assert(leaveClass(UR, CL) == -1)
+        assert(changeMemberRole(UR, CL, True) == -1)
+    # TEST IF USER AND NO CLASS
+    if(True):
+        addUser(UR, "TESTPASSWORD")
+        deleteClass(CL)
+        assert(joinClass(UR, CL, True) == -1)
+        assert(leaveClass(UR, CL) == -1)
+        assert(changeMemberRole(UR, CL, True) == -1)
+        deleteUser(UR)
+    # TEST IF NO USER AND CLASS
+    if(True):
+        deleteUser(UR)
+        addClass(CL, "TEST")
+        assert(joinClass(UR, CL, True) == -1)
+        assert(leaveClass(UR, CL) == -1)
+        assert(changeMemberRole(UR, CL, True) == -1)
+        deleteClass(CL)
+    # TEST IF USER AND CLASS
+    if(True):
+        addUser(UR, "TESTPASSWORD")
+        addClass(CL, "TEST")
+        assert(joinClass(UR, CL, True) == 0)
+        assert(changeMemberRole(UR, CL, True) == 0)
+        assert(leaveClass(UR, CL) == 0)
+        assert(changeMemberRole(UR, CL, True) == -1)
+    deleteUser(UR)
+    deleteClass(CL)
+    #CHECK CLEAN UP
+    assert(checkExists("users", "email='" + UR + "'") == False)
+    assert(checkExists("userclasses", "email='" + UR + "'") == False)
+    assert(checkExists("userschedule", "email='" + UR + "'") == False)
+    assert(checkExists("classes", "classid=" + str(CL)) == False)
+    assert(checkExists("classofficehourscache", "classid=" + str(CL)) == False)
+    assert(checkExists("classhours", "classid=" + str(CL)) == False)
+    assert(checkExists("userclasses", "classid=" + str(CL)) == False)
+    print("TEST COMPLETED SUCCESSFULLY")
