@@ -5,17 +5,18 @@ UR = "TESTDUMMY"
 CL = 65535
 temp = {}
 
+# helper function so I don't have to type this whole thing out every time
 def r(url, json, mode):
-    addr = URL + ":" + PORT
+    addr = URL + ":" + PORT + url
     match mode:
         case 0: # GET
-            return requests.get(addr + url, json=json)
+            return requests.get(addr, json=json)
         case 1: # POST
-            return requests.post(addr + url, json=json)
+            return requests.post(addr, json=json)
         case 2: # PATCH
-            return requests.patch(addr + url, json=json)
+            return requests.patch(addr, json=json)
         case 3: #DELETE
-            return requests.delete(addr + url, json=json)
+            return requests.delete(addr, json=json)
         case _:
             return None
 
@@ -41,10 +42,13 @@ if(True):
     assert(r("/users/", {"email":UR}, 1).json()["status"] == -2)
     # password is present
     assert(r("/users/", {"email":UR, "password":"TESTPASSWORD"}, 1).json()["status"] == 0)
+    # if user already exists
     assert(r("/users/", {"email":UR, "password":"TESTPASSWORD"}, 1).json()["status"] == -1)
 
     # DELETE
+    # if user exists
     assert(r("/users/", {"email":UR}, 3).json()["status"] == 0)
+    # if user doesn't
     assert(r("/users/", {"email":UR}, 3).json()["status"] == -1)
 
     # GET
@@ -134,11 +138,15 @@ if(True):
     # no name field
     assert(r("/classes/", {"id":CL}, 1).json()["status"] == -2)
     # normal functionality
+    # if no class
     assert(r("/classes/", {"id":CL, "name":"TEST"}, 1).json()["status"] == 0)
+    # if class
     assert(r("/classes/", {"id":CL, "name":"TEST"}, 1).json()["status"] == -1)
 
     # DELETE
+    # if class
     assert(r("/classes/", {"id":CL}, 3).json()["status"] == 0)
+    # if no class
     assert(r("/classes/", {"id":CL}, 3).json()["status"] == -1)
 
     # GET
@@ -189,6 +197,7 @@ if(True):
     r("/classes/", {"id":CL}, 3)
     assert(r("/classes/", {"id":CL}, 2).json()["status"] == 0) # once again, make sure it doesn't fail if it doesn't need to update anything
     # NO TARGET
+    # every combination of elements
     assert(r("/classes/", {"id":CL, "name":"TEST", "schedule":emptySchedule(), "officehours":"yourmom"}, 2).json()["status"] == -1)
     assert(r("/classes/", {"id":CL, "name":"TEST", "schedule":emptySchedule()}, 2).json()["status"] == -1)
     assert(r("/classes/", {"id":CL, "name":"TEST", "officehours":"yourmom"}, 2).json()["status"] == -1)
@@ -197,6 +206,7 @@ if(True):
     assert(r("/classes/", {"id":CL, "schedule":emptySchedule()}, 2).json()["status"] == -1)
     assert(r("/classes/", {"id":CL, "officehours":"yourmom"}, 2).json()["status"] == -1)
     # WITH 
+    # every combination of elements
     r("/classes/", {"id":CL, "name":"TEST"}, 1)
     temp = r("/classes/", {"id":CL, "name":"TEST1", "schedule":emptySchedule(), "officehours":"yourmom"}, 2).json()
     assert(temp["status"] == 0)
@@ -283,9 +293,11 @@ if(True):
     r("/classes/", {"id":CL, "name":"TEST"}, 1)
     assert(r("/users/classes/", {"email":UR, "id":CL, "role":True}, 1).json()["status"] == 0)
     assert(r("/users/classes/", {"email":UR, "id":CL, "role":True}, 1).json()["status"] == -1)
+    
     # DELETE
-
+    # if user-class entry exists
     assert(r("/users/classes/", {"email":UR, "id":CL}, 3).json()["status"] == 0)
+    # if not
     assert(r("/users/classes/", {"email":UR, "id":CL}, 3).json()["status"] == -1)
 
     # GET

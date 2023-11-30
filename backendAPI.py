@@ -5,7 +5,6 @@ from flask import Flask, request, jsonify
 # from .getSchedules import * #fucking jank ass python import
 import psycopg2
 import json
-# from match_schedules import ScheduleBuildAndMatch
 import numpy
 app = Flask(__name__)
 
@@ -40,7 +39,7 @@ def buildScheduleQuery():
             string += ", d" + str(x) + "h" + str(y)
     return string
 
-# previous function but better
+# previous function but better, I forgot why I kept the original around. Maybe TABLE.ATT doesn't work without a joined table
 def buildJoinedScheduleQuery(table):
     string = table + ".d1h1"
     for x in range(2, 13):
@@ -133,12 +132,7 @@ def getClassOfficeHours(classID):
     return ret
 
 #swaps out a schedule
-#UNTESTED
 def setSchedule(table, field, key, schedule):
-    # command = "insert into " + table + " values " + field + "=(" + str(schedule[0])
-    # for i in range(1, 60):
-    #     command += "," + str(schedule[i])
-    # command += ");"
     if(not checkExists(table, field + "=" + key)):
         return -1
     command = "update " + table + " set d1h1=" + str(schedule[0])
@@ -150,26 +144,21 @@ def setSchedule(table, field, key, schedule):
         for y in range(1, 13):
             command += ",d" + str(i) + "h" + str(y) + "=" + str(schedule[x])
     command += " where " + field + "=" + key + ";"
-    # print(command)
     con = writeConnect()
     cur = con.cursor()
-    # cur.execute("delete from userschedule where " + field + "=" + key + ";")
     cur.execute(command)
     con.commit()
     return 0
 
 #sets a user's schedule
-#UNTESTED
 def setUserSchedule(email, schedule):
     return setSchedule("userschedule", "email", "'" + email + "'", schedule)
 
 #sets class's hours
-#UNTESTED
 def setClassSchedule(classID, schedule):
     return setSchedule("classhours", "classid", str(classID), schedule)
 
 #sets class's cached office hours
-#UNTESTED
 def setClassOfficeHours(classID, schedule):
     return setSchedule("classofficehourscache", "classid", str(classID), schedule)
 
@@ -235,6 +224,7 @@ def getUserName(email):
     return ret[0]
 
 #returns all the details of a user needed to assemble their profile
+# returns -1 on failure
 def getUserDetails(email):
     cur = readConnect()
     cur.execute("select users.email,users.name," + buildJoinedScheduleQuery("userschedule") + " from users join userschedule on users.email=userschedule.email where users.email='" + email + "';")
@@ -244,7 +234,7 @@ def getUserDetails(email):
     return ret
 
 # returns the name of a user
-# returns an empty string on failure
+# returns -1 on failure
 def getClassName(classID):
     cur = readConnect()
     cur.execute("select name from classes where classid=" + str(classID) + ";")
@@ -253,6 +243,8 @@ def getClassName(classID):
         return -1
     return ret[0]
 
+# returns the class id, name, class hours, and office hours
+# returns -1 on failure
 def getClassDetails(classID):
     cur = readConnect()
     cur.execute("select classes.classid,classes.name," + buildJoinedScheduleQuery("classhours") + "," + buildJoinedScheduleQuery("classofficehourscache") + " from classes join classhours on classes.classid=classhours.classid join classofficehourscache on classes.classid=classofficehourscache.classid where classes.classid="+ str(classID) +";")
@@ -262,7 +254,8 @@ def getClassDetails(classID):
     return ret
 
 #deletes a user from all relevent tables
-#UNTESTED
+# returns 0 on success
+# returns -1 on failure
 def deleteUser(email):
     if(not checkExists("users", "email='" + email + "'")):
         return -1
@@ -275,6 +268,8 @@ def deleteUser(email):
     return 0
 
 #deletes a class from all relevent tables
+# returns 0 on success
+# returns -1 on failure
 def deleteClass(classID):
     if(not checkExists("classes", "classid=" + str(classID))):
         return -1
@@ -288,6 +283,8 @@ def deleteClass(classID):
     return 0
 
 #adds a user to a class
+# returns 0 on success
+# returns -1 on failure
 def joinClass(email, classID, role):
     if(not checkExists("users", "email='" + email + "'")):
         return -1
@@ -302,6 +299,8 @@ def joinClass(email, classID, role):
     return 0
 
 #removes a user from a class
+# returns 0 on success
+# returns -1 on failure
 def leaveClass(email, classID):
     if(not checkExists("userclasses", "email='" + email + "' and classid=" + str(classID))):
         return -1
@@ -312,6 +311,8 @@ def leaveClass(email, classID):
     return 0
 
 #changes the role of a user in a class
+# returns 0 on success
+# returns -1 on failure
 def changeMemberRole(email, classID, role):
     if(not checkExists("userclasses", "email='" + email + "' and classid=" + str(classID))):
         return -1
@@ -322,6 +323,8 @@ def changeMemberRole(email, classID, role):
     return 0
 
 #returns the classes a member is in and their role in them
+# returns an array of the user's classes on success. Will be an empty array if the user isn't in any
+# returns -1 on failure
 def getUserClasses(email):
     if(not checkExists("users", "email='" + email + "'")):
         return -1
@@ -333,6 +336,8 @@ def getUserClasses(email):
     return ret
 
 #returns all the members of a class and their role in it
+# returns an array of the users in the class and their role in it. Will be an empty array if there are no members of that class
+# returns -1 on failure
 def getClassMembers(classID):
     if(not checkExists("classes", "classid=" + str(classID))):
         return -1
@@ -456,33 +461,6 @@ def genCounter(schedules):
 
 # TODO: 
 #     add authentication method to guard access to certain functions
-
-# testdat = [
-#     {"pee": "nus", "value":6}, 
-#     {"pee": "pee", "value":9}, 
-#     {"pee": "butt", "value":1}, 
-#     {"pee": "poop", "value":7}, 
-# ]
-# # test function for testing
-# @app.get("/pee/")
-# def getPee():
-#     return testdat
-
-# @app.route("/pee/", methods=['POST'])
-# def putPee():
-#     # pee = request.args("TEST")
-#     print(request.get_json())
-#     return {1:1}
-
-# @app.get("/pee/<urine>/")
-# def piss(urine):
-#     match urine:
-#         case "poo":
-#             return jsonify(1)
-#         case _:
-#             return jsonify(2)
-
-# ACTUAL ENDPOINTS + FUNCTIONS
 
 # handles user related stuff
 @app.route('/users/', methods=['GET', 'POST', 'PATCH', 'DELETE'])
@@ -632,8 +610,8 @@ def C():
                     ret['name'] = -1
                     ret["status"] = -1
             if('officehours' in req): # PART THAT THE ALGORITHM RUNS AT 
-                #constant that controls how many office hours per day are generated
                 if(checkExists("classes", "classid=" + str(req["id"]))):
+                    #constant that controls how many office hours per day are generated
                     OFFICEHOURSSLOTS = 4
                     hours = FindOptimalOfficeHours(req['id'], OFFICEHOURSSLOTS)
                     if(setClassOfficeHours(req['id'], convertArrayToTuple(hours)) == 0):
@@ -690,11 +668,6 @@ def UC():
 
 # just for getting the members of a class
 @app.route("/classes/students/", methods=["GET"])
-# try:
-#     cur.execute("select * from users where email=1;")#raises error and triggers catch block
-#     print("fish")
-# except:
-#     print("balls")
 def CS():
     req = request.get_json()
     if("id" not in req):
@@ -712,14 +685,6 @@ def CS():
             }
         case _:
             return {"status":-2}
-        
-
-# cur = readConnect()
-# try:
-#     cur.execute("select * from users where email=1;")#raises error and triggers catch block
-#     print("fish")
-# except:
-#     print("balls")
 
 
 # TEST getSchedules Functions
