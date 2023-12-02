@@ -101,7 +101,7 @@ if(True):
     assert(temp["status"] == -1)
     assert(temp["schedule"] == -1)
     assert(temp["name"] == -1)
-    # WTIH USER
+    # WITH USER
     r("/users/", {"email":UR, "password":"TESTPASSWORD"}, 1)
     temp = r("/users/", {"email":UR, "schedule":emptySchedule()}, 2).json()
     assert(temp["status"] == 0)
