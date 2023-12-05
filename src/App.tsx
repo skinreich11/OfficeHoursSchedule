@@ -4,6 +4,9 @@ import MainPage from "./Pages/MainPage";
 import NavBar from "./NavBar/NavBar";
 import Login from "./Pages/Login";
 import Signup from "./Pages/Signup";
+import CreateClass from "./Pages/CreateClass"
+import Profile from "./Pages/Profile"
+import JoinClass from "./Pages/JoinClass"
 import './App.css';
 import CourseManager from './Pages/CourseManager';
 
@@ -20,6 +23,9 @@ function App() {
         
         <Routes>
           <Route path = '/' element={<MainPage/>}/>
+          <Route path = '/JoinClass' element={<JoinClass/>}/>
+          <Route path = '/Profile' element={<Profile/>}/>
+          <Route path = '/CreateClass' element={<CreateClass/>}/>
         </Routes>
         <Routes>
           <Route path = '/login' element={<Login/>}/>
