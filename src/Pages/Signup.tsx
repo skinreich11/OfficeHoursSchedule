@@ -3,10 +3,11 @@ import {Route, Routes, Navigate, BrowserRouter as Router} from 'react-router-dom
 import {MDBBtn, MDBContainer, MDBRow, MDBCol, MDBCard, MDBCardBody, MDBInput, MDBSwitch} from 'mdb-react-ui-kit';
 import '../Styles/Login.css'
 
-function Login() {
+function Signup() {
     
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [cPassword, setCPassword] = useState("");
     const [isTeacher, setRole] = useState("I am a Student");
     
     const roleSwitch = () => {
@@ -25,20 +26,20 @@ function Login() {
                 <MDBCard className='bg-dark text-white my-5 mx-auto' style={{borderRadius: '1rem', maxWidth: '400px'}}>
                     <MDBCardBody className='p-5 d-flex flex-column align-items-center mx-auto w-100'>
 
-                    <h2 className="mb-2 text-uppercase">Login</h2>
-                    <p className="text-white-50 mb-5">Please enter your login and password!</p>
+                    <h2 className="mb-2 text-uppercase">Sign Up</h2>
+                    <p className="text-white-50 mb-5">Please enter your information!</p>
                     <MDBInput wrapperClass='mb-4 mx-5 w-100' labelClass='text-white' label='Email address' id='formControlLg' type='email' size="lg" value={email} onChange={(e) => setEmail(e.target.value)}/>
                     <MDBInput wrapperClass='mb-4 mx-5 w-100' labelClass='text-white' label='Password' id='formControlLg' type='password' size="lg" value={password} onChange={(e) => setPassword(e.target.value)}/>
+                    <MDBInput wrapperClass='mb-4 mx-5 w-100' labelClass='text-white' label='Confirm Password' id='formControlLg' type='password' size="lg" value={cPassword} onChange={(e) => setCPassword(e.target.value)}/>
 
                     <MDBSwitch id='roleSwitch' onChange = {e => roleSwitch()} label = {isTeacher}/>
 
-                    <p className="small mb-3 pb-lg-2"><a className="text-blue-50" href="#todo">Forgot password?</a></p> {/*changed class to className */}
                     <MDBBtn outline className='mx-2 px-5' size='lg'>
-                        Login
+                        Sign Up
                     </MDBBtn>
 
                     <div>
-                        <p className="mb-0">Don't have an account? <a href="#signup" className="text-blue-50 fw-bold">Sign Up</a></p> {/*changed class to className */}
+                        <p className="mb-0">Have an account? <a href="#Login" className="text-blue-50 fw-bold">Log In</a></p> {/*changed class to className */}
                     </div>  
 
                     </MDBCardBody>
@@ -51,4 +52,4 @@ function Login() {
     );
 }
 
-export default Login;
+export default Signup;
