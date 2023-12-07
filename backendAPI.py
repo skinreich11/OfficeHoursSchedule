@@ -165,12 +165,12 @@ def setClassOfficeHours(classID, schedule):
 #adds a user to the databases
 # returns 0 on success
 # returns -1 on failure due to email in use
-def addUser(email, password):
+def addUser(email, password, role):
     if(checkExists("users", "email='" + email + "'")):
         return -1
     con = writeConnect()
     cur = con.cursor()
-    cur.execute("insert into users values ('" + email + "','" + password + "','');")
+    cur.execute("insert into users values ('" + email + "','" + password + "',''," + str(role) + ");")
     cur.execute("insert into userschedule values ('" + email + "'," + stringEmptySchedule() + ");")
     con.commit()
     return 0
@@ -186,6 +186,29 @@ def setUserName(email, name):
     cur.execute("update users set name='" + name + "';")
     con.commit()
     return 0
+
+# changes an existing users password
+# returns 0 on success
+# return -1 on failure due to no user existing with the email+password combination
+def changePassword(email, password, newPassword):
+    if(not checkExists("users", "email='" + email + "' and password='" + password + "'")):
+        return -1
+    con = writeConnect()
+    cur = con.cursor()
+    cur.execute("update users set password='" + newPassword + "' where email='" +  email + "' and password='" + password + "';")
+    con.commit()
+    return 0
+
+# used to check if a user is a teacher
+# returns true if the user is
+# returns false otherwise
+def isTeacher(email):
+    cur = readConnect()
+    cur.execute("select role from users where email='" +  email + "'")
+    # return cur.fetchone()
+    if(cur.fetchone()[0] == True):
+        return True
+    return False
 
 # adds a class to the databases
 # returns 0 on success
@@ -504,11 +527,11 @@ def U():
                 case _:
                     return {"status":-2}
         case 'POST':
-            if('password' not in req):
+            if('password' not in req and 'role' not in req):
                 return {"status":-2}
             if(containsForbidden(req['password'])):
                 return {"status":-1}
-            return {"status":addUser(req['email'], req['password'])}
+            return {"status":addUser(req['email'], req['password'], req['role'])}
         case 'PATCH':
             ret = {"status":0}
             if "schedule" in req:
@@ -704,10 +727,10 @@ if(True):
         assert(setUserName(UR, "TEST") == -1)
         assert(getUserDetails(UR) == -1)
         assert(getUserClasses(UR) == -1)
-        assert(addUser(UR, "TESTPASSWORD") == 0)
+        assert(addUser(UR, "TESTPASSWORD", True) == 0)
     # TEST IF USER
     if(True):
-        assert(addUser(UR, "TESTPASSWORD") == -1)
+        assert(addUser(UR, "TESTPASSWORD", True) == -1)
         assert(checkExists("users", "email='" + UR + "'") == True)
         assert(len(getUserSchedule(UR)) == 60)
         assert(setUserSchedule(UR, emptySchedule()) == 0)
@@ -754,7 +777,7 @@ if(True):
         assert(changeMemberRole(UR, CL, True) == -1)
     # TEST IF USER AND NO CLASS
     if(True):
-        addUser(UR, "TESTPASSWORD")
+        addUser(UR, "TESTPASSWORD", True)
         deleteClass(CL)
         assert(joinClass(UR, CL, True) == -1)
         assert(leaveClass(UR, CL) == -1)
@@ -770,7 +793,7 @@ if(True):
         deleteClass(CL)
     # TEST IF USER AND CLASS
     if(True):
-        addUser(UR, "TESTPASSWORD")
+        addUser(UR, "TESTPASSWORD", True)
         addClass(CL, "TEST")
         assert(joinClass(UR, CL, True) == 0)
         assert(changeMemberRole(UR, CL, True) == 0)
