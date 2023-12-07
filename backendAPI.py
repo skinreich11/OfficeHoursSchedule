@@ -5,7 +5,6 @@ from flask import Flask, request, jsonify
 # from .getSchedules import * #fucking jank ass python import
 import psycopg2
 import json
-# from match_schedules import ScheduleBuildAndMatch
 import numpy
 app = Flask(__name__)
 
@@ -40,7 +39,7 @@ def buildScheduleQuery():
             string += ", d" + str(x) + "h" + str(y)
     return string
 
-# previous function but better
+# previous function but better, I forgot why I kept the original around. Maybe TABLE.ATT doesn't work without a joined table
 def buildJoinedScheduleQuery(table):
     string = table + ".d1h1"
     for x in range(2, 13):
@@ -61,15 +60,40 @@ def stringEmptySchedule():
         string += ",0"
     return string
 
+#checks if some object exists in a table
+# table: string, the table to look in
+# where: string, the condition to specify the entry, format as "ATTRIBUTE=VALUE" or "ATT1=VAL1 and ATT2=VAL2"
+def checkExists(table, where):
+    cur = readConnect()
+    cur.execute("select * from " + table + " where " + where + ";")
+    if(cur.fetchone() == None):
+        return False
+    return True    
+
+# checks a string for characters that may break the SQL or be used for SQL injection
+def containsForbidden(string):
+    if(not isinstance(string, str)):
+        return True
+    FORBIDDEN_CHAR = ["'", '"']
+    for i in range(len(FORBIDDEN_CHAR)):
+        if(string.find(FORBIDDEN_CHAR[i]) > -1):
+            return True
+    return False
+
 #returns the schedules of a class
 def getSchedules(classid, teacher):
+    if(not checkExists("classes", "classid=" + str(classid))):
+        return -1
     command = "select "
     # if(teacher == "true"):
     command += " userClasses.email,"
     command += buildScheduleQuery() + " from userClasses join userSchedule on userClasses.email=userSchedule.email where classID=" + str(classid) + " and role=" + teacher + ";"
     cur = readConnect()
     cur.execute(command)
-    return cur.fetchall()
+    ret = cur.fetchall()
+    if(ret == None):
+        return []
+    return ret
 
 #returns all the student schedules of a class
 def getStudentSchedules(classid):
@@ -84,33 +108,33 @@ def getUserSchedule(email):
     command = "select " + buildScheduleQuery() + " from userSchedule where email='" + email + "';"
     cur = readConnect()
     cur.execute(command)
-    return cur.fetchone()
+    ret = cur.fetchone()
+    if(ret == None):
+        return -1
+    return ret
 
 #returns a class's schedule/hours
 def getClassSchedule(classID):
     cur = readConnect()
     cur.execute("select " + buildScheduleQuery() + " from classhours where classid=" + str(classID) + ";")
-    return cur.fetchone()
-
-#returns the class counter file used for the algorithm
-def getClassCounter(classID):
-    cur = readConnect()
-    cur.execute("select " + buildScheduleQuery() + " from classcounter where classid=" + str(classID) + ";")
-    return cur.fetchone()
+    ret = cur.fetchone()
+    if(ret == None):
+        return -1
+    return ret
 
 # returns a class's office hours from the cache
 def getClassOfficeHours(classID):
     cur = readConnect()
     cur.execute("select " + buildScheduleQuery() + " from classofficehourscache where classid=" + str(classID) + ";")
-    return cur.fetchone()
+    ret = cur.fetchone()
+    if(ret == None):
+        return -1
+    return ret
 
 #swaps out a schedule
-#UNTESTED
 def setSchedule(table, field, key, schedule):
-    # command = "insert into " + table + " values " + field + "=(" + str(schedule[0])
-    # for i in range(1, 60):
-    #     command += "," + str(schedule[i])
-    # command += ");"
+    if(not checkExists(table, field + "=" + key)):
+        return -1
     command = "update " + table + " set d1h1=" + str(schedule[0])
     x = 1
     for i in range(2,13):
@@ -120,46 +144,33 @@ def setSchedule(table, field, key, schedule):
         for y in range(1, 13):
             command += ",d" + str(i) + "h" + str(y) + "=" + str(schedule[x])
     command += " where " + field + "=" + key + ";"
-    # print(command)
     con = writeConnect()
     cur = con.cursor()
-    # cur.execute("delete from userschedule where " + field + "=" + key + ";")
     cur.execute(command)
     con.commit()
-    return
+    return 0
 
 #sets a user's schedule
-#UNTESTED
 def setUserSchedule(email, schedule):
-    setSchedule("userschedule", "email", "'" + email + "'", schedule)
-    return
+    return setSchedule("userschedule", "email", "'" + email + "'", schedule)
 
 #sets class's hours
-#UNTESTED
 def setClassSchedule(classID, schedule):
-    setSchedule("classhours", "classid", str(classID), schedule)
-    return
+    return setSchedule("classhours", "classid", str(classID), schedule)
 
 #sets class's cached office hours
-#UNTESTED
 def setClassOfficeHours(classID, schedule):
-    setSchedule("classofficehourscache", "classid", str(classID), schedule)
-    return
-
-def setClassCounter(classID, schedule):
-    setSchedule("classcounter", "classid", str(classID), schedule)
-    return
+    return setSchedule("classofficehourscache", "classid", str(classID), schedule)
 
 #adds a user to the databases
 # returns 0 on success
 # returns -1 on failure due to email in use
-def addUser(email, password):
+def addUser(email, password, role):
+    if(checkExists("users", "email='" + email + "'")):
+        return -1
     con = writeConnect()
     cur = con.cursor()
-    cur.execute("select * from users where email='" + email + "';")
-    if(cur.fetchone() != None):
-        return -1
-    cur.execute("insert into users values ('" + email + "','" + password + "','');")
+    cur.execute("insert into users values ('" + email + "','" + password + "',''," + str(role) + ");")
     cur.execute("insert into userschedule values ('" + email + "'," + stringEmptySchedule() + ");")
     con.commit()
     return 0
@@ -168,24 +179,45 @@ def addUser(email, password):
 # returns 0 on success
 # returns -1 on failure due to no account found'
 def setUserName(email, name):
+    if(not checkExists("users", "email='" + email + "'")):
+        return -1
     con = writeConnect()
     cur = con.cursor()
-    cur.execute("select * from users where email='" + email + "';")
-    if(cur.fetchone() == None):
-        return -1
     cur.execute("update users set name='" + name + "';")
     con.commit()
     return 0
+
+# changes an existing users password
+# returns 0 on success
+# return -1 on failure due to no user existing with the email+password combination
+def changePassword(email, password, newPassword):
+    if(not checkExists("users", "email='" + email + "' and password='" + password + "'")):
+        return -1
+    con = writeConnect()
+    cur = con.cursor()
+    cur.execute("update users set password='" + newPassword + "' where email='" +  email + "' and password='" + password + "';")
+    con.commit()
+    return 0
+
+# used to check if a user is a teacher
+# returns true if the user is
+# returns false otherwise
+def isTeacher(email):
+    cur = readConnect()
+    cur.execute("select role from users where email='" +  email + "'")
+    # return cur.fetchone()
+    if(cur.fetchone()[0] == True):
+        return True
+    return False
 
 # adds a class to the databases
 # returns 0 on success
 # returns -1 on failure due to classID in use
 def addClass(classID, name):
+    if(checkExists("classes", "classid=" + str(classID))):
+        return -1
     con = writeConnect()
     cur = con.cursor()
-    cur.execute("select * from classes where classid=" + str(classID) + ";")
-    if(cur.fetchone() != None):
-        return -1
     cur.execute("insert into classes values (" + str(classID) + ",'" + name + "');")
     cur.execute("insert into classhours values (" + str(classID) + "," + stringEmptySchedule() + ");")
     cur.execute("insert into classofficehourscache values (" + str(classID) + "," + stringEmptySchedule() + ");")
@@ -196,12 +228,11 @@ def addClass(classID, name):
 # returns 0 on success
 # returns -1 on failure
 def setClassName(classID, name):
+    if(not checkExists("classes", "classid=" + str(classID))):
+        return -1
     con = writeConnect()
     cur = con.cursor()
-    cur.execute("select * from classes where classid=" + str(classID) + ";")
-    if(cur.fetchone() == None):
-        return -1
-    cur.execute("update classes set name='" + name + "';")
+    cur.execute("update classes set name='" + name + "' where classid=" + str(classID) + ";")
     con.commit()
     return 0
 
@@ -212,38 +243,47 @@ def getUserName(email):
     cur.execute("select name from users where email='" + email + "';")
     ret = cur.fetchone()
     if(ret == None):
-        return ""
+        return -1
     return ret[0]
 
 #returns all the details of a user needed to assemble their profile
+# returns -1 on failure
 def getUserDetails(email):
     cur = readConnect()
     cur.execute("select users.email,users.name," + buildJoinedScheduleQuery("userschedule") + " from users join userschedule on users.email=userschedule.email where users.email='" + email + "';")
-    return cur.fetchone()
+    ret = cur.fetchone()
+    if(ret == None):
+        return -1
+    return ret
 
 # returns the name of a user
-# returns an empty string on failure
+# returns -1 on failure
 def getClassName(classID):
     cur = readConnect()
     cur.execute("select name from classes where classid=" + str(classID) + ";")
     ret = cur.fetchone()
     if(ret == None):
-        return ""
+        return -1
     return ret[0]
 
+# returns the class id, name, class hours, and office hours
+# returns -1 on failure
 def getClassDetails(classID):
     cur = readConnect()
     cur.execute("select classes.classid,classes.name," + buildJoinedScheduleQuery("classhours") + "," + buildJoinedScheduleQuery("classofficehourscache") + " from classes join classhours on classes.classid=classhours.classid join classofficehourscache on classes.classid=classofficehourscache.classid where classes.classid="+ str(classID) +";")
-    return cur.fetchone()
+    ret = cur.fetchone()
+    if(ret == None):
+        return -1
+    return ret
 
 #deletes a user from all relevent tables
-#UNTESTED
+# returns 0 on success
+# returns -1 on failure
 def deleteUser(email):
+    if(not checkExists("users", "email='" + email + "'")):
+        return -1
     con = writeConnect()
     cur = con.cursor()
-    cur.execute("select * from users where email='" + email + "';")
-    if(cur.fetchone() == None):
-        return -1
     cur.execute("delete from userschedule where email='" + email + "';")
     cur.execute("delete from userclasses where email='" + email + "';")
     cur.execute("delete from users where email='" + email + "';")
@@ -251,18 +291,85 @@ def deleteUser(email):
     return 0
 
 #deletes a class from all relevent tables
+# returns 0 on success
+# returns -1 on failure
 def deleteClass(classID):
+    if(not checkExists("classes", "classid=" + str(classID))):
+        return -1
     con = writeConnect()
     cur = con.cursor()
-    cur.execute("select * from classes where classid=" + str(classID) + ";")
-    if(cur.fetchone() == None):
-        return -1
     cur.execute("delete from userclasses where classID=" + str(classID) + ";")
     cur.execute("delete from classhours where classID=" + str(classID) + ";")
     cur.execute("delete from classofficeHoursCache where classID=" + str(classID) + ";")
     cur.execute("delete from classes where classID=" + str(classID) + ";")
     con.commit()
     return 0
+
+#adds a user to a class
+# returns 0 on success
+# returns -1 on failure
+def joinClass(email, classID, role):
+    if(not checkExists("users", "email='" + email + "'")):
+        return -1
+    if(not checkExists("classes", "classid=" + str(classID))):
+        return -1
+    if(checkExists("userclasses", "email='" + email + "' and classid=" + str(classID))):
+        return -1
+    con = writeConnect()
+    cur = con.cursor()
+    cur.execute("insert into userclasses values ('" + email + "'," + str(classID) + "," + str(role) + ");")
+    con.commit()
+    return 0
+
+#removes a user from a class
+# returns 0 on success
+# returns -1 on failure
+def leaveClass(email, classID):
+    if(not checkExists("userclasses", "email='" + email + "' and classid=" + str(classID))):
+        return -1
+    con = writeConnect()
+    cur = con.cursor()
+    cur.execute("delete from userclasses where email='" + email + "' and classid=" + str(classID) + ";")
+    con.commit()
+    return 0
+
+#changes the role of a user in a class
+# returns 0 on success
+# returns -1 on failure
+def changeMemberRole(email, classID, role):
+    if(not checkExists("userclasses", "email='" + email + "' and classid=" + str(classID))):
+        return -1
+    con = writeConnect()
+    cur = con.cursor()
+    cur.execute("update userclasses set role=" + str(role) + " where email='" + email + "' and classid=" + str(classID) + ";")
+    con.commit()
+    return 0
+
+#returns the classes a member is in and their role in them
+# returns an array of the user's classes on success. Will be an empty array if the user isn't in any
+# returns -1 on failure
+def getUserClasses(email):
+    if(not checkExists("users", "email='" + email + "'")):
+        return -1
+    cur = readConnect()
+    cur.execute("select classid,role from userclasses where email='" + email +"';")
+    ret = cur.fetchall()
+    if(ret == None):
+        return []
+    return ret
+
+#returns all the members of a class and their role in it
+# returns an array of the users in the class and their role in it. Will be an empty array if there are no members of that class
+# returns -1 on failure
+def getClassMembers(classID):
+    if(not checkExists("classes", "classid=" + str(classID))):
+        return -1
+    cur = readConnect()
+    cur.execute("select email,role from userclasses where classid=" + str(classID) + ";")
+    ret = cur.fetchall()
+    if(ret == None):
+        return []
+    return ret
 
 # ALGORITHM STUFF
 
@@ -301,8 +408,8 @@ class ScheduleBuildAndMatch:
                     student_schedule[i][j] = 0 #increment counter by 1 at this timeslot
         # self.save_counter() #save counter into counter.txt
     
-    def fetchCounter(self):
-        return self.counter
+    # def fetchCounter(self):
+    #     return self.counter
 
 def convertToArray(schedule):
     scheduleArray = [[None, [[0] *12 for _ in range(5)]]]
@@ -334,6 +441,7 @@ def convertArrayToTuple(schedule):
         for y in range(12):
             list.append(schedule[x][y])
     return list
+
 
 def FindOptimalOfficeHours(classID, numberOfficeHours):
     student_hours = genCounter(convertToArray(getStudentSchedules(classID)))
@@ -377,144 +485,328 @@ def genCounter(schedules):
 # TODO: 
 #     add authentication method to guard access to certain functions
 
-testdat = [
-    {"pee": "nus", "value":6}, 
-    {"pee": "pee", "value":9}, 
-    {"pee": "butt", "value":1}, 
-    {"pee": "poop", "value":7}, 
-]
-# test function for testing
-@app.get("/pee/")
-def getPee():
-    return testdat
-
-@app.route("/pee/", methods=['POST'])
-def putPee():
-    # pee = request.args("TEST")
-    print(request.get_json())
-    return jsonify(1)
-
-@app.get("/pee/<urine>/")
-def piss(urine):
-    match urine:
-        case "poo":
-            return jsonify(1)
-        case _:
-            return jsonify(2)
-
-# ACTUAL ENDPOINTS + FUNCTIONS
-
 # handles user related stuff
 @app.route('/users/', methods=['GET', 'POST', 'PATCH', 'DELETE'])
 def U():
     req = request.get_json()
     if('email' not in req):
-        return -2
+        return {"status":-2}
+    if(containsForbidden(req['email'])):
+        return {"status":-1}
     match request.method:
         case 'GET':
             if('data' not in req):
-                return -2
+                return {"status":-2}
             match req['data']:
                 case 'profile':
                     details = (getUserDetails(req['email']))
+                    if(details == -1):
+                        return {"status":-1}
                     return {
                         "email": details[0],
                         "name": details[1],
-                        "schedule":(details[2:15], details[15:27], details[27:39], details[39:51], details[51:62])
+                        "schedule":(details[2:14], details[14:26], details[26:38], details[38:50], details[50:62]),
+                        "status":0
                         }
                 case 'schedule':
                     details = getUserSchedule(req['email'])
+                    if(details == -1):
+                        return {"status":-1}
                     return {
-                        "schedule":(details[0:13], details[13:25], details[25:37], details[37:49], details[49:60])
+                        "schedule":(details[0:12], details[12:24], details[24:36], details[36:48], details[48:60]),
+                        "status":0
                         }
                 case 'name':
+                    details = getUserName(req['email'])
+                    if(details == -1):
+                        return {"status":-1}
                     return {
-                        "name":getUserName(req['email'])
+                        "name":details,
+                        "status":0
                         }
                 case _:
-                    return -2
+                    return {"status":-2}
         case 'POST':
-            if('password' not in req):
-                return -2
-            return addUser(req['email'], req['password'])
+            if('password' not in req and 'role' not in req):
+                return {"status":-2}
+            if(containsForbidden(req['password'])):
+                return {"status":-1}
+            return {"status":addUser(req['email'], req['password'], req['role'])}
         case 'PATCH':
-            ret = {}
+            ret = {"status":0}
             if "schedule" in req:
-                if(setUserSchedule(req['email'], req['schedule']) == 0):
-                    ret['schedule'] = True
+                #ADD req["schedule"] integer type check?
+                if("schedule" not in req or len(req["schedule"]) != 5 or len(req["schedule"][0]) != 12):
+                    ret["schedule"] = -1
+                    ret["status"] = -1
+                elif(setUserSchedule(req['email'], convertArrayToTuple(req['schedule'])) == 0):
+                    ret['schedule'] = 0
                 else:
-                    ret['schedule'] = False
+                    ret['schedule'] = -1
+                    ret["status"] = -1
             if 'name' in req:
+                if(containsForbidden(req['name'])):
+                    return {"status": -1}
                 if(setUserName(req['email'], req['name']) == 0):
-                    ret['name'] = True
+                    ret['name'] = 0
                 else:
-                    ret['name'] = False
+                    ret['name'] = -1
+                    ret["status"] = -1
             return ret
         case 'DELETE':
-            return deleteUser(req['email'])
+            return {"status":deleteUser(req['email'])}
         case _:
-            return -2
+            return {"status":-2}
 
 # handles class related stuff
 @app.route("/classes/", methods=['GET', 'POST', 'PATCH', 'DELETE'])
 def C():
     req = request.get_json()
     if('id' not in req):
-        return -2
+        return {"status":-2}
+    if(not isinstance(req['id'], int)):
+        return {"status":-1}
     match request.method:
         case 'GET':
             if('data' not in req):
-                return -2
+                return {"status":-2}
             match req['data']:
                 case 'all':
                     details = getClassDetails(req['id'])
+                    if(details == -1):
+                        return {"status":-1}
                     return {
                         "classid": details[0],
                         "name": details[1],
-                        "classhours":(details[2:15], details[15:27], details[27:39], details[39:51], details[51:63]),
-                        "officehours":(details[63:75], details[75:87], details[87:99], details[99:111], details[111:123])
+                        "schedule":(details[2:14], details[14:26], details[26:38], details[38:50], details[50:62]),
+                        "officehours":(details[62:74], details[74:86], details[86:98], details[98:110], details[110:122]),
+                        "status":0
                     }
                 case 'name':
+                    details = getClassName(req['id'])
+                    if(details == -1):
+                        return {"status":-1}
                     return {
-                    "name":getClassName(req['id'])
+                    "name":details,
+                    "status":0
                     }
                 case 'schedule':
                     details = getClassSchedule(req['id'])
+                    if(details == -1):
+                        return {"status":-1}
                     return {
-                        "schedule":(details[0:13], details[13:25], details[25:37], details[37:49], details[49:60])
+                        "schedule":(details[0:12], details[12:24], details[24:36], details[36:48], details[48:60]),
+                        "status":0
                         }
                 case 'officehours':
                     details = getClassOfficeHours(req['id'])
+                    if(details == -1):
+                        return {"status":-1}
                     return {
-                        "schedule":(details[0:13], details[13:25], details[25:37], details[37:49], details[49:60])
+                        "officehours":(details[0:12], details[12:24], details[24:36], details[36:48], details[48:60]),
+                        "status":0
                         }
                 case _:
-                    return -2
+                    return {"status":-2}
         case 'POST':
             if('name' not in req):
-                return -2
-            return addClass(req['id'], req['name'])
+                return {"status":-2}
+            if(containsForbidden(req['name'])):
+                return {"status": -1}
+            return {"status":addClass(req['id'], req['name'])}
         case 'PATCH':
-            ret = {}
+            ret = {"status":0}
             if "schedule" in req:
-                if(setClassSchedule(req['id'], req['schedule']) == 0):
-                    ret['schedule'] = True
+                #ADD req["schedule"] integer type check?
+                if(setClassSchedule(req['id'], convertArrayToTuple(req['schedule'])) == 0):
+                    ret['schedule'] = 0
                 else:
-                    ret['schedule'] = False
+                    ret['schedule'] = -1
+                    ret["status"] = -1
             if 'name' in req:
-                if(setClassName(req['id'], req['name']) == 0):
-                    ret['name'] = True
+                if(containsForbidden(req['name'])):
+                    ret['name'] = -1
+                    ret["status"] = -1
+                elif(setClassName(req['id'], req['name']) == 0):
+                    ret['name'] = 0
                 else:
-                    ret['name'] = False
+                    ret['name'] = -1
+                    ret["status"] = -1
             if('officehours' in req): # PART THAT THE ALGORITHM RUNS AT 
-                #constant that controls how many office hours per day are generated
-                OFFICEHOURSSLOTS = 4
-                if(setClassOfficeHours(req['id'], convertArrayToTuple(FindOptimalOfficeHours(req['id'], OFFICEHOURSSLOTS))) == 0):
-                    ret['officehours'] = True
+                if(checkExists("classes", "classid=" + str(req["id"]))):
+                    #constant that controls how many office hours per day are generated
+                    OFFICEHOURSSLOTS = 4
+                    hours = FindOptimalOfficeHours(req['id'], OFFICEHOURSSLOTS)
+                    if(setClassOfficeHours(req['id'], convertArrayToTuple(hours)) == 0):
+                        ret['officehours'] = hours
+                    else:
+                        ret['officehours'] = -1
+                        ret["status"] = -1
                 else:
-                    ret['officehours'] = False
+                    ret['officehours'] = -1
+                    ret["status"] = -1
             return ret
         case 'DELETE':
-            return deleteClass(ret['id'])
+            return {"status":deleteClass(req['id'])}
         case _:
-            return -2
+            return {"status":-2}
+
+# handles stuff related to user-class pairs/entries in userclasses
+@app.route("/users/classes/", methods=["GET", "POST", "PATCH", "DELETE"])
+def UC():
+    req = request.get_json()
+    if("email" not in req):
+        return {"status":-2}
+    if(containsForbidden(req['email'])):
+        return {"status": -1}
+    match request.method:
+        case "GET":
+            details = getUserClasses(req["email"])
+            if(details == -1):
+                return {"status":-1}
+            return {
+                "classes":details,
+                "status":0
+            }
+        case "POST":
+            if("id" not in req or "role" not in req):
+                return {"status":-2}
+            if(not isinstance(req['id'], int) or not isinstance(req['role'], bool)):
+                return {"status":-1}
+            return {"status":joinClass(req["email"], req["id"], req["role"])}
+        case "PATCH":
+            if("id" not in req or "role" not in req):
+                return {"status":-2}
+            if(not isinstance(req['id'], int) or not isinstance(req['role'], bool)):
+                return {"status":-1}
+            return {"status":changeMemberRole(req["email"], req["id"], req["role"])}
+        case "DELETE":
+            if("id" not in req):
+                return {"status":-2}
+            if(not isinstance(req['id'], int)):
+                return {"status":-1}
+            return {"status":leaveClass(req["email"], req["id"])}
+        case _:
+            return {"status":-2}
+
+# just for getting the members of a class
+@app.route("/classes/students/", methods=["GET"])
+def CS():
+    req = request.get_json()
+    if("id" not in req):
+        return {"status":-2}
+    if(not isinstance(req['id'], int)):
+        return {"status":-1}
+    match request.method:
+        case "GET":
+            details = getClassMembers(req["id"])
+            if(details == -1):
+                return {"status":-1}
+            return {
+                "members":details,
+                "status":0
+            }
+        case _:
+            return {"status":-2}
+
+
+# TEST getSchedules Functions
+if(True):
+    UR = "TESTDUMMY"
+    CL = 65535
+    print("STARTING DATABASE FUNCTIONS TEST")
+    deleteUser(UR)
+    deleteClass(CL)
+    # TEST IF NO USER
+    if(True):
+        assert(checkExists("users", "email='" + UR + "'") == False)
+        assert(deleteUser(UR) == -1)
+        assert(getUserSchedule(UR) == -1)
+        assert(setUserSchedule(UR, emptySchedule()) == -1)
+        assert(getUserName(UR) == -1)
+        assert(setUserName(UR, "TEST") == -1)
+        assert(getUserDetails(UR) == -1)
+        assert(getUserClasses(UR) == -1)
+        assert(addUser(UR, "TESTPASSWORD", True) == 0)
+    # TEST IF USER
+    if(True):
+        assert(addUser(UR, "TESTPASSWORD", True) == -1)
+        assert(checkExists("users", "email='" + UR + "'") == True)
+        assert(len(getUserSchedule(UR)) == 60)
+        assert(setUserSchedule(UR, emptySchedule()) == 0)
+        assert(getUserName(UR) == "")
+        assert(setUserName(UR, "TEST") == 0)
+        assert(getUserName(UR) == "TEST")
+        assert(len(getUserDetails(UR)) == 62)
+        assert(len(getUserClasses(UR)) >= 0)
+        assert(deleteUser(UR) == 0)
+    # TEST IF NO CLASS
+    if(True):
+        assert(checkExists("classes", "classid=" + str(CL)) == False)
+        assert(deleteClass(CL) == -1)
+        assert(getClassSchedule(CL) == -1)
+        assert(setClassName(CL,"TEST") == -1)
+        assert(getClassName(CL) == -1)
+        assert(setClassSchedule(CL, emptySchedule()) == -1)
+        assert(setClassOfficeHours(CL, emptySchedule()) == -1)
+        assert(getClassOfficeHours(CL) == -1)
+        assert(getClassDetails(CL) == -1)
+        assert(getClassMembers(CL) == -1)
+        assert(addClass(CL, "TEST") == 0)
+    # TEST IF CLASS
+    if(True):
+        addClass(CL, "TEST")
+        assert(addClass(CL, "TEST") == -1)
+        assert(checkExists("classes", "classid=" + str(CL)) == True)
+        assert(len(getClassSchedule(CL)) == 60)
+        assert(getClassName(CL) == "TEST")
+        assert(setClassName(CL,"TEST1") == 0)
+        assert(getClassName(CL) == "TEST1")
+        assert(setClassSchedule(CL, emptySchedule()) == 0)
+        assert(setClassOfficeHours(CL, emptySchedule()) == 0)
+        assert(len(getClassOfficeHours(CL)) == 60)
+        assert(len(getClassDetails(CL)) == 122)
+        assert(len(getClassMembers(CL)) >= 0)
+        assert(deleteClass(CL) == 0)
+    # TEST IF NO USER AND NO CLASS
+    if(True):
+        deleteUser(UR)
+        deleteClass(CL)
+        assert(joinClass(UR, CL, True) == -1)
+        assert(leaveClass(UR, CL) == -1)
+        assert(changeMemberRole(UR, CL, True) == -1)
+    # TEST IF USER AND NO CLASS
+    if(True):
+        addUser(UR, "TESTPASSWORD", True)
+        deleteClass(CL)
+        assert(joinClass(UR, CL, True) == -1)
+        assert(leaveClass(UR, CL) == -1)
+        assert(changeMemberRole(UR, CL, True) == -1)
+        deleteUser(UR)
+    # TEST IF NO USER AND CLASS
+    if(True):
+        deleteUser(UR)
+        addClass(CL, "TEST")
+        assert(joinClass(UR, CL, True) == -1)
+        assert(leaveClass(UR, CL) == -1)
+        assert(changeMemberRole(UR, CL, True) == -1)
+        deleteClass(CL)
+    # TEST IF USER AND CLASS
+    if(True):
+        addUser(UR, "TESTPASSWORD", True)
+        addClass(CL, "TEST")
+        assert(joinClass(UR, CL, True) == 0)
+        assert(changeMemberRole(UR, CL, True) == 0)
+        assert(leaveClass(UR, CL) == 0)
+        assert(changeMemberRole(UR, CL, True) == -1)
+    deleteUser(UR)
+    deleteClass(CL)
+    #CHECK CLEAN UP
+    assert(checkExists("users", "email='" + UR + "'") == False)
+    assert(checkExists("userclasses", "email='" + UR + "'") == False)
+    assert(checkExists("userschedule", "email='" + UR + "'") == False)
+    assert(checkExists("classes", "classid=" + str(CL)) == False)
+    assert(checkExists("classofficehourscache", "classid=" + str(CL)) == False)
+    assert(checkExists("classhours", "classid=" + str(CL)) == False)
+    assert(checkExists("userclasses", "classid=" + str(CL)) == False)
+    print("TEST COMPLETED SUCCESSFULLY")
