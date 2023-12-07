@@ -250,7 +250,7 @@ def getUserName(email):
 # returns -1 on failure
 def getUserDetails(email):
     cur = readConnect()
-    cur.execute("select users.email,users.name," + buildJoinedScheduleQuery("userschedule") + " from users join userschedule on users.email=userschedule.email where users.email='" + email + "';")
+    cur.execute("select users.email,users.name,users.role" + buildJoinedScheduleQuery("userschedule") + " from users join userschedule on users.email=userschedule.email where users.email='" + email + "';")
     ret = cur.fetchone()
     if(ret == None):
         return -1
@@ -505,7 +505,8 @@ def U():
                     return {
                         "email": details[0],
                         "name": details[1],
-                        "schedule":(details[2:14], details[14:26], details[26:38], details[38:50], details[50:62]),
+                        "role": details[2],
+                        "schedule":(details[3:15], details[15:27], details[27:39], details[39:51], details[51:63]),
                         "status":0
                         }
                 case 'schedule':
