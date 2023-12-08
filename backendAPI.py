@@ -2,7 +2,6 @@
 # python -m pip install flask
 
 from flask import Flask, request, jsonify
-# from .getSchedules import * #fucking jank ass python import
 import psycopg2
 import json
 import numpy
@@ -143,6 +142,7 @@ def setSchedule(table, field, key, schedule):
     for i in range(2,6):
         for y in range(1, 13):
             command += ",d" + str(i) + "h" + str(y) + "=" + str(schedule[x])
+            x+=1
     command += " where " + field + "=" + key + ";"
     con = writeConnect()
     cur = con.cursor()
@@ -165,12 +165,12 @@ def setClassOfficeHours(classID, schedule):
 #adds a user to the databases
 # returns 0 on success
 # returns -1 on failure due to email in use
-def addUser(email, password, role):
+def addUser(email, password):
     if(checkExists("users", "email='" + email + "'")):
         return -1
     con = writeConnect()
     cur = con.cursor()
-    cur.execute("insert into users values ('" + email + "','" + password + "',''," + str(role) + ");")
+    cur.execute("insert into users values ('" + email + "','" + password + "','');")
     cur.execute("insert into userschedule values ('" + email + "'," + stringEmptySchedule() + ");")
     con.commit()
     return 0
@@ -186,29 +186,6 @@ def setUserName(email, name):
     cur.execute("update users set name='" + name + "';")
     con.commit()
     return 0
-
-# changes an existing users password
-# returns 0 on success
-# return -1 on failure due to no user existing with the email+password combination
-def changePassword(email, password, newPassword):
-    if(not checkExists("users", "email='" + email + "' and password='" + password + "'")):
-        return -1
-    con = writeConnect()
-    cur = con.cursor()
-    cur.execute("update users set password='" + newPassword + "' where email='" +  email + "' and password='" + password + "';")
-    con.commit()
-    return 0
-
-# used to check if a user is a teacher
-# returns true if the user is
-# returns false otherwise
-def isTeacher(email):
-    cur = readConnect()
-    cur.execute("select role from users where email='" +  email + "'")
-    # return cur.fetchone()
-    if(cur.fetchone()[0] == True):
-        return True
-    return False
 
 # adds a class to the databases
 # returns 0 on success
@@ -250,7 +227,7 @@ def getUserName(email):
 # returns -1 on failure
 def getUserDetails(email):
     cur = readConnect()
-    cur.execute("select users.email,users.name,users.role" + buildJoinedScheduleQuery("userschedule") + " from users join userschedule on users.email=userschedule.email where users.email='" + email + "';")
+    cur.execute("select users.email,users.name," + buildJoinedScheduleQuery("userschedule") + " from users join userschedule on users.email=userschedule.email where users.email='" + email + "';")
     ret = cur.fetchone()
     if(ret == None):
         return -1
@@ -377,11 +354,11 @@ class ScheduleBuildAndMatch:
     def __init__(self, teacher_array, num_office_hours):
         #Below are constants matched with states of time slots on schedule
         self.busy: int = 0
-        self.free: int = 1
-        self.lecture: int = 2
-        self.assignment: int = 3
-        self.exam: int = 4
-        self.office_hours: int = 5
+        #self.free: int = 1
+        #self.lecture: int = 2
+        #self.assignment: int = 3
+        #self.exam: int = 4
+        #self.office_hours: int = 5
         
         self.number_office_hours_per_day = num_office_hours #number of office hours per day
         self.office_hours = [[0] *12 for _ in range(5)] #reset optimal office hours each time to properly overwrite data. Uses persitant counter.txt to set timeslots
@@ -391,13 +368,13 @@ class ScheduleBuildAndMatch:
     
     #This is the algorithm. Uses numpy argpartition to find indexes of the n(number of office hours per day) highest elements in each day of the week of counter.txt
     def update_office_hours(self, counter):
-        # self.fetch_counter() 
         self.match_with_teacher(counter)
         for i in range(5): #for each day of the week
             day_hours = numpy.argpartition(counter[i], -self.number_office_hours_per_day)[-self.number_office_hours_per_day:] #find indexes of n highest elements
             for j in range(self.number_office_hours_per_day): #for number of office hours per day
+                if(counter[i][day_hours[j]] == 0):
+                   break
                 self.office_hours[i][day_hours[j]] = 5   #set office_hours array at that timeslot of the n highest counter indicies to 5 (correlates to office hours)
-        # self.save_office_hours() #save this array into office_hours.txt     
         return self.office_hours  
            
     #This is the function that increments counter based on teacher and student schedule
@@ -406,11 +383,7 @@ class ScheduleBuildAndMatch:
             for j in range(12):#for each timeslot of each day
                 if(self.teacher_hours[i][j] == 0): #if teacher and student are both available at a timeslot
                     student_schedule[i][j] = 0 #increment counter by 1 at this timeslot
-        # self.save_counter() #save counter into counter.txt
-    
-    # def fetchCounter(self):
-    #     return self.counter
-
+       
 def convertToArray(schedule):
     scheduleArray = [[None, [[0] *12 for _ in range(5)]]]
     for k in range(len(schedule)):
@@ -431,8 +404,6 @@ def convertToArrayCounter(schedule):
         for y in range(0, 12):
             array[x].append(schedule[i])
             i = i+1
-            # print(i)
-    # print(schedule[59])
     return array
 
 def convertArrayToTuple(schedule):
@@ -446,14 +417,6 @@ def convertArrayToTuple(schedule):
 def FindOptimalOfficeHours(classID, numberOfficeHours):
     student_hours = genCounter(convertToArray(getStudentSchedules(classID)))
     teacher_hours = genCounter(convertToArray(getTeacherSchedules(classID)))
-    # total_teacher_hours = [[0] * 12 for _ in range (5)]
-    # for i in range(5):
-    #     for j in range(12):
-    #         total_teacher_hours[i][j] = 0
-    #         for k in range(len(teacher_hours)):
-    #             if(teacher_hours[k][1][i][j] == 1):
-    #                 total_teacher_hours[i][j] = 1
-    #                 break
     BuildSchedule = ScheduleBuildAndMatch(teacher_hours, numberOfficeHours)
     return BuildSchedule.update_office_hours(student_hours)
 
@@ -505,8 +468,7 @@ def U():
                     return {
                         "email": details[0],
                         "name": details[1],
-                        "role": details[2],
-                        "schedule":(details[3:15], details[15:27], details[27:39], details[39:51], details[51:63]),
+                        "schedule":(details[2:14], details[14:26], details[26:38], details[38:50], details[50:62]),
                         "status":0
                         }
                 case 'schedule':
@@ -528,11 +490,11 @@ def U():
                 case _:
                     return {"status":-2}
         case 'POST':
-            if('password' not in req and 'role' not in req):
+            if('password' not in req):
                 return {"status":-2}
             if(containsForbidden(req['password'])):
                 return {"status":-1}
-            return {"status":addUser(req['email'], req['password'], req['role'])}
+            return {"status":addUser(req['email'], req['password'])}
         case 'PATCH':
             ret = {"status":0}
             if "schedule" in req:
@@ -636,7 +598,7 @@ def C():
             if('officehours' in req): # PART THAT THE ALGORITHM RUNS AT 
                 if(checkExists("classes", "classid=" + str(req["id"]))):
                     #constant that controls how many office hours per day are generated
-                    OFFICEHOURSSLOTS = 4
+                    OFFICEHOURSSLOTS = 1
                     hours = FindOptimalOfficeHours(req['id'], OFFICEHOURSSLOTS)
                     if(setClassOfficeHours(req['id'], convertArrayToTuple(hours)) == 0):
                         ret['officehours'] = hours
@@ -711,8 +673,10 @@ def CS():
             return {"status":-2}
 
 
+
+
 # TEST getSchedules Functions
-if(True):
+if(False):
     UR = "TESTDUMMY"
     CL = 65535
     print("STARTING DATABASE FUNCTIONS TEST")
@@ -728,10 +692,10 @@ if(True):
         assert(setUserName(UR, "TEST") == -1)
         assert(getUserDetails(UR) == -1)
         assert(getUserClasses(UR) == -1)
-        assert(addUser(UR, "TESTPASSWORD", True) == 0)
+        assert(addUser(UR, "TESTPASSWORD") == 0)
     # TEST IF USER
     if(True):
-        assert(addUser(UR, "TESTPASSWORD", True) == -1)
+        assert(addUser(UR, "TESTPASSWORD") == -1)
         assert(checkExists("users", "email='" + UR + "'") == True)
         assert(len(getUserSchedule(UR)) == 60)
         assert(setUserSchedule(UR, emptySchedule()) == 0)
@@ -778,7 +742,7 @@ if(True):
         assert(changeMemberRole(UR, CL, True) == -1)
     # TEST IF USER AND NO CLASS
     if(True):
-        addUser(UR, "TESTPASSWORD", True)
+        addUser(UR, "TESTPASSWORD")
         deleteClass(CL)
         assert(joinClass(UR, CL, True) == -1)
         assert(leaveClass(UR, CL) == -1)
@@ -794,7 +758,7 @@ if(True):
         deleteClass(CL)
     # TEST IF USER AND CLASS
     if(True):
-        addUser(UR, "TESTPASSWORD", True)
+        addUser(UR, "TESTPASSWORD")
         addClass(CL, "TEST")
         assert(joinClass(UR, CL, True) == 0)
         assert(changeMemberRole(UR, CL, True) == 0)
