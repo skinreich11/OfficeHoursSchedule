@@ -142,6 +142,7 @@ def setSchedule(table, field, key, schedule):
     for i in range(2,6):
         for y in range(1, 13):
             command += ",d" + str(i) + "h" + str(y) + "=" + str(schedule[x])
+            x+=1
     command += " where " + field + "=" + key + ";"
     con = writeConnect()
     cur = con.cursor()
@@ -352,7 +353,7 @@ def getClassMembers(classID):
 class ScheduleBuildAndMatch:
     def __init__(self, teacher_array, num_office_hours):
         #Below are constants matched with states of time slots on schedule
-        #self.busy: int = 0
+        self.busy: int = 0
         #self.free: int = 1
         #self.lecture: int = 2
         #self.assignment: int = 3
@@ -372,7 +373,7 @@ class ScheduleBuildAndMatch:
             day_hours = numpy.argpartition(counter[i], -self.number_office_hours_per_day)[-self.number_office_hours_per_day:] #find indexes of n highest elements
             for j in range(self.number_office_hours_per_day): #for number of office hours per day
                 if(counter[i][day_hours[j]] == 0):
-                    break
+                   break
                 self.office_hours[i][day_hours[j]] = 5   #set office_hours array at that timeslot of the n highest counter indicies to 5 (correlates to office hours)
         return self.office_hours  
            
