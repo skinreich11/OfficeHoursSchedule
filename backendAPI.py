@@ -2,11 +2,17 @@
 # python -m pip install flask
 
 from flask import Flask, request, jsonify
+# from .getSchedules import * #fucking jank ass python import
+from userAuth import login_manager, register_user, login, logout, validate_password
 import psycopg2
 import json
 import numpy
+from flask_login import login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
-
+login_manager.init_app(app)
+app.secret_key = "joe mama is a box of rocks superglued to a donkey's anus"
+# would be best to randomize this or something
 
 #returns a connection with the master account
 #remove in final version and replace with some account that only has permission to make, delete, and update table entries in the officehours db
@@ -165,12 +171,12 @@ def setClassOfficeHours(classID, schedule):
 #adds a user to the databases
 # returns 0 on success
 # returns -1 on failure due to email in use
-def addUser(email, password):
+def addUser(email, password, role):
     if(checkExists("users", "email='" + email + "'")):
         return -1
     con = writeConnect()
     cur = con.cursor()
-    cur.execute("insert into users values ('" + email + "','" + password + "','');")
+    cur.execute("insert into users values ('" + email + "','" + password + "',''," + str(role) + ");")
     cur.execute("insert into userschedule values ('" + email + "'," + stringEmptySchedule() + ");")
     con.commit()
     return 0
@@ -186,6 +192,54 @@ def setUserName(email, name):
     cur.execute("update users set name='" + name + "';")
     con.commit()
     return 0
+
+# verifies that a set of email and password corrospond to an existing 
+# returns true if there is a user with that email and password
+# returns false otherwise
+def checkUserCredentials(email, password):
+    cur = readConnect()
+    cur.execute("select password from users where email='" + email + "';")
+    PW = cur.fetchone()
+    if(PW == None):
+        return False
+    if PW != None and check_password_hash(PW[0], password):
+        return True
+    return False
+
+# changes an existing users password
+# returns 0 on success
+# return -1 on failure due to no user existing with the email+password combination
+def changePassword(email, password, newPassword):
+    if(not checkUserCredentials(email, password)):
+        return -1
+    con = writeConnect()
+    cur = con.cursor()
+    cur.execute("update users set password='" + generate_password_hash(newPassword) + "' where email='" +  email + "' and password='" + password + "';")
+    con.commit()
+    return 0
+
+# used to check if a user is a teacher
+# returns true if the user is
+# returns false otherwise
+def isTeacher(email):
+    cur = readConnect()
+    cur.execute("select role from users where email='" +  email + "'")
+    # return cur.fetchone()
+    dat = cur.fetchone()
+    if(dat != None and dat[0] == True):
+        return True
+    return False
+
+# used to check if the user is a teacher in the specified class
+# returns true if the user is
+# returns false otherwise
+def isTeacherInClass(email, id):
+    cur = readConnect()
+    cur.execute("select role from userclasses where email='" + email + "' and classid=" + str(id) + ";")
+    dat = cur.fetchone()
+    if(dat != None and dat[0] == True):
+        return True
+    return False
 
 # adds a class to the databases
 # returns 0 on success
@@ -227,7 +281,7 @@ def getUserName(email):
 # returns -1 on failure
 def getUserDetails(email):
     cur = readConnect()
-    cur.execute("select users.email,users.name," + buildJoinedScheduleQuery("userschedule") + " from users join userschedule on users.email=userschedule.email where users.email='" + email + "';")
+    cur.execute("select users.email,users.name,users.role," + buildJoinedScheduleQuery("userschedule") + " from users join userschedule on users.email=userschedule.email where users.email='" + email + "';")
     ret = cur.fetchone()
     if(ret == None):
         return -1
@@ -443,36 +497,123 @@ def genCounter(schedules):
 #   0: SUCCESS
 #   -1: FAILURE
 #   -2: IMPROPER FORMATTING
+#   -3: NO PERMISSION
 #   PATCH requests return a json object containing the relevant attributes and a boolean for if it succeeded or not
 
 # TODO: 
-#     add authentication method to guard access to certain functions
+    # N/A
 
-# handles user related stuff
-@app.route('/users/', methods=['GET', 'POST', 'PATCH', 'DELETE'])
-def U():
+# FOR TESTING, COMMENT OUT IN FINAL VERSION
+# DOESN'T REQUIRE AUTHENTICATION
+# ORDER OF "data"
+# 0. email
+# 1. classid
+# 2. role
+# 3. schedule
+@app.route("/backdoor/", methods=['GET', 'POST', 'PATCH', 'DELETE'])
+def backdoor():
     req = request.get_json()
-    if('email' not in req):
-        return {"status":-2}
-    if(containsForbidden(req['email'])):
-        return {"status":-1}
+    if "table" not in req or "data" not in req:
+        return {}, 400
     match request.method:
-        case 'GET':
-            if('data' not in req):
-                return {"status":-2}
-            match req['data']:
-                case 'profile':
-                    details = (getUserDetails(req['email']))
+        case "GET":
+            match req["table"]:
+                case "users":
+                    details = (getUserDetails(req["data"][0]))
                     if(details == -1):
                         return {"status":-1}
                     return {
                         "email": details[0],
                         "name": details[1],
+                        "role": details[2],
+                        "schedule":(details[3:15], details[15:27], details[27:39], details[39:51], details[51:63])
+                        }
+                case "classes":
+                    details = getClassDetails(req['data'][1])
+                    if(details == -1):
+                        return {"status":-1}
+                    return {
+                        "classid": details[0],
+                        "name": details[1],
                         "schedule":(details[2:14], details[14:26], details[26:38], details[38:50], details[50:62]),
+                        "officehours":(details[62:74], details[74:86], details[86:98], details[98:110], details[110:122])
+                    }
+                case "userclasses":
+                    return {"data":getUserClasses(req["data"][0])}
+                case "class_students":
+                    return {"data":getClassMembers(req["data"][1])}
+                case _:
+                    return {}, 400
+        case "POST":
+            match req["table"]:
+                case "users":
+                    return {"status":addUser(req["data"][0], generate_password_hash("1!Password"), req["data"][2])}
+                case "classes":
+                    return {"status":addClass(req["data"][1], "TESTCLASS")}
+                case "userclasses":
+                    return {"status":joinClass(req["data"][0], req["data"][1], req["data"][2])}
+                case _:
+                    return {}, 400
+        case "PATCH":
+            match req["table"]:
+                case _:
+                    return {}, 400
+        case "DELETE":
+            match req["table"]:
+                case "users":
+                    return {"status":deleteUser((req["data"])[0])}
+                case "classes":
+                    return {"status":deleteClass(req["data"][1])}
+                case "userclasses":
+                    return {"status":leaveClass(req["data"][0], req["data"][1])}
+                case _:
+                    return {}, 400
+        case _:
+            return {}, 400
+
+
+# register
+@app.route('/register', methods=['POST'])
+def register():
+    req = request.get_json()
+    if("email" not in req or "password" not in req or "role" not in req):
+        return {"status":-2}, 400
+    return register_user(req["email"], req["password"], req["role"])
+
+# login
+@app.route('/login', methods=['POST'])
+def user_login():
+    return login(request.get_json())
+
+# logout
+@app.route('/logout')
+def user_logout():
+    return logout()
+
+# handles user related stuff
+@app.route('/users/', methods=['GET', 'PATCH', 'DELETE'])
+@login_required
+def U():
+    req = request.get_json()
+    match request.method:
+        case 'GET':
+            if('data' not in req):
+                print(current_user.id)
+                return {"status":-2}, 400
+            match req['data']:
+                case 'profile':
+                    details = (getUserDetails(current_user.id))
+                    if(details == -1):
+                        return {"status":-1}
+                    return {
+                        "email": details[0],
+                        "name": details[1],
+                        "role": details[2],
+                        "schedule":(details[3:15], details[15:27], details[27:39], details[39:51], details[51:63]),
                         "status":0
                         }
                 case 'schedule':
-                    details = getUserSchedule(req['email'])
+                    details = getUserSchedule(current_user.id)
                     if(details == -1):
                         return {"status":-1}
                     return {
@@ -480,7 +621,7 @@ def U():
                         "status":0
                         }
                 case 'name':
-                    details = getUserName(req['email'])
+                    details = getUserName(current_user.id)
                     if(details == -1):
                         return {"status":-1}
                     return {
@@ -488,21 +629,14 @@ def U():
                         "status":0
                         }
                 case _:
-                    return {"status":-2}
-        case 'POST':
-            if('password' not in req):
-                return {"status":-2}
-            if(containsForbidden(req['password'])):
-                return {"status":-1}
-            return {"status":addUser(req['email'], req['password'])}
+                    return {"status":-2}, 400
         case 'PATCH':
             ret = {"status":0}
             if "schedule" in req:
-                #ADD req["schedule"] integer type check?
                 if("schedule" not in req or len(req["schedule"]) != 5 or len(req["schedule"][0]) != 12):
                     ret["schedule"] = -1
                     ret["status"] = -1
-                elif(setUserSchedule(req['email'], convertArrayToTuple(req['schedule'])) == 0):
+                elif(setUserSchedule(current_user.id, convertArrayToTuple(req['schedule'])) == 0):
                     ret['schedule'] = 0
                 else:
                     ret['schedule'] = -1
@@ -510,34 +644,52 @@ def U():
             if 'name' in req:
                 if(containsForbidden(req['name'])):
                     return {"status": -1}
-                if(setUserName(req['email'], req['name']) == 0):
+                if(setUserName(current_user.id, req['name']) == 0):
                     ret['name'] = 0
                 else:
                     ret['name'] = -1
                     ret["status"] = -1
+            if 'password' in req:
+                if 'newPassword' not in req:
+                    ret["password"] = -2
+                    ret["status"] = -2
+                    return ret, 400
+                else:
+                    status, message = validate_password(req["newPassword"])
+                    if(not status):
+                        ret["password"] = -1
+                        ret["status"] = -1
+                        ret["message"] = message
+                    elif (changePassword(current_user.id, req["password"], req["newPassword"]) != 0):
+                        ret["password"] = -1
+                        ret["status"] = -1
+                        ret["message"] = "Incorrect User or Password"
+                    else:
+                        ret["password"] = 0
             return ret
         case 'DELETE':
-            return {"status":deleteUser(req['email'])}
+            if "password" not in req:
+                return {"status":-2}, 400
+            if not checkUserCredentials(current_user.id, req["password"]):
+                return {"status":-1}
+            data = deleteUser(current_user.id)
+            if data == 0:
+                logout()
+            return {"status":data}
         case _:
-            return {"status":-2}
+            return {"status":-2}, 400
 
 # handles class related stuff
-@app.route("/classes/", methods=['GET', 'POST', 'PATCH', 'DELETE'])
-def C():
+@app.route("/classes/", methods=['GET'])
+def C1():
     req = request.get_json()
-    if('id' not in req):
-        return {"status":-2}
-    if(not isinstance(req['id'], int)):
-        return {"status":-1}
-    match request.method:
-        case 'GET':
-            if('data' not in req):
-                return {"status":-2}
-            match req['data']:
+    if('id' not in req or 'data' not in req):
+        return {"status":-2}, 400
+    match req['data']:
                 case 'all':
                     details = getClassDetails(req['id'])
                     if(details == -1):
-                        return {"status":-1}
+                        return {"status":-1}, 404
                     return {
                         "classid": details[0],
                         "name": details[1],
@@ -548,7 +700,7 @@ def C():
                 case 'name':
                     details = getClassName(req['id'])
                     if(details == -1):
-                        return {"status":-1}
+                        return {"status":-1}, 404
                     return {
                     "name":details,
                     "status":0
@@ -556,7 +708,7 @@ def C():
                 case 'schedule':
                     details = getClassSchedule(req['id'])
                     if(details == -1):
-                        return {"status":-1}
+                        return {"status":-1}, 404
                     return {
                         "schedule":(details[0:12], details[12:24], details[24:36], details[36:48], details[48:60]),
                         "status":0
@@ -564,23 +716,40 @@ def C():
                 case 'officehours':
                     details = getClassOfficeHours(req['id'])
                     if(details == -1):
-                        return {"status":-1}
+                        return {"status":-1}, 404
                     return {
                         "officehours":(details[0:12], details[12:24], details[24:36], details[36:48], details[48:60]),
                         "status":0
                         }
                 case _:
-                    return {"status":-2}
+                    return {"status":-2}, 400
+
+@app.route("/classes/", methods=['POST', 'PATCH', 'DELETE'])
+@login_required
+def C():
+    if not isTeacher(current_user.id):
+        return {"status":-3, "message":"begone student"}, 403
+    req = request.get_json()
+    if('id' not in req):
+        return {"status":-2}, 400
+    if(not isinstance(req['id'], int)):
+        return {"status":-1}
+    match request.method:
         case 'POST':
             if('name' not in req):
-                return {"status":-2}
+                return {"status":-2}, 400
             if(containsForbidden(req['name'])):
                 return {"status": -1}
-            return {"status":addClass(req['id'], req['name'])}
+            ret = {"status":addClass(req['id'], req['name'])}
+            if(ret["status"] == 0):
+                joinClass(current_user.id, req['id'], True)
+                return ret
+            return ret, 409
         case 'PATCH':
             ret = {"status":0}
+            if not isTeacherInClass(current_user.id, req["id"]):
+                return {"status":-3}, 403
             if "schedule" in req:
-                #ADD req["schedule"] integer type check?
                 if(setClassSchedule(req['id'], convertArrayToTuple(req['schedule'])) == 0):
                     ret['schedule'] = 0
                 else:
@@ -597,9 +766,7 @@ def C():
                     ret["status"] = -1
             if('officehours' in req): # PART THAT THE ALGORITHM RUNS AT 
                 if(checkExists("classes", "classid=" + str(req["id"]))):
-                    #constant that controls how many office hours per day are generated
-                    OFFICEHOURSSLOTS = 1
-                    hours = FindOptimalOfficeHours(req['id'], OFFICEHOURSSLOTS)
+                    hours = FindOptimalOfficeHours(req['id'], req["officehours"])
                     if(setClassOfficeHours(req['id'], convertArrayToTuple(hours)) == 0):
                         ret['officehours'] = hours
                     else:
@@ -610,72 +777,84 @@ def C():
                     ret["status"] = -1
             return ret
         case 'DELETE':
+            if not isTeacherInClass(current_user.id, req["id"]):
+                return {"status":-3}, 403
             return {"status":deleteClass(req['id'])}
         case _:
-            return {"status":-2}
+            return {"status":-2}, 400
 
 # handles stuff related to user-class pairs/entries in userclasses
 @app.route("/users/classes/", methods=["GET", "POST", "PATCH", "DELETE"])
+@login_required
 def UC():
     req = request.get_json()
-    if("email" not in req):
-        return {"status":-2}
-    if(containsForbidden(req['email'])):
-        return {"status": -1}
     match request.method:
         case "GET":
-            details = getUserClasses(req["email"])
+            details = getUserClasses(current_user.id)
             if(details == -1):
-                return {"status":-1}
+                return {"status":-1}, 404
             return {
                 "classes":details,
                 "status":0
             }
         case "POST":
-            if("id" not in req or "role" not in req):
-                return {"status":-2}
-            if(not isinstance(req['id'], int) or not isinstance(req['role'], bool)):
-                return {"status":-1}
-            return {"status":joinClass(req["email"], req["id"], req["role"])}
+            if("id" not in req):
+                return {"status":-2}, 400
+            if(not isinstance(req['id'], int)):
+                return {"status":-1}, 400
+            dat = joinClass(current_user.id, req["id"], False)
+            if dat == -1:
+                return {"status":dat}, 404 
+            return {"status":dat}
         case "PATCH":
-            if("id" not in req or "role" not in req):
-                return {"status":-2}
+            if("id" not in req or "email" not in req or "role" not in req):
+                return {"status":-2}, 400
             if(not isinstance(req['id'], int) or not isinstance(req['role'], bool)):
-                return {"status":-1}
+                return {"status":-1}, 400
+            if not isTeacherInClass(current_user.id, req["id"]):
+                return {"status":-3}, 403
             return {"status":changeMemberRole(req["email"], req["id"], req["role"])}
         case "DELETE":
             if("id" not in req):
-                return {"status":-2}
+                return {"status":-2}, 400
             if(not isinstance(req['id'], int)):
-                return {"status":-1}
-            return {"status":leaveClass(req["email"], req["id"])}
+                return {"status":-1}, 400
+            if("email" in req):
+                if not isTeacherInClass(current_user.id, req["id"]):
+                    return {"status":-3}, 403
+                dat = leaveClass(req["email"], req["id"])
+            else:
+                dat = leaveClass(current_user.id, req["id"])
+            if dat == -1:
+                return {"status":dat}, 404
+            return {"status":dat}
         case _:
-            return {"status":-2}
+            return {"status":-2}, 400
 
 # just for getting the members of a class
 @app.route("/classes/students/", methods=["GET"])
+@login_required
 def CS():
     req = request.get_json()
     if("id" not in req):
-        return {"status":-2}
+        return {"status":-2}, 400
     if(not isinstance(req['id'], int)):
-        return {"status":-1}
+        return {"status":-1}, 400
+    if not isTeacherInClass(current_user.id, req["id"]):
+        return {"status":-3}, 403
     match request.method:
         case "GET":
             details = getClassMembers(req["id"])
             if(details == -1):
-                return {"status":-1}
+                return {"status":-1}, 404
             return {
                 "members":details,
                 "status":0
             }
         case _:
-            return {"status":-2}
+            return {"status":-2}, 400
 
-
-
-
-# TEST getSchedules Functions
+# OUTDATED, NEEDS UPDATING
 if(False):
     UR = "TESTDUMMY"
     CL = 65535
@@ -692,10 +871,10 @@ if(False):
         assert(setUserName(UR, "TEST") == -1)
         assert(getUserDetails(UR) == -1)
         assert(getUserClasses(UR) == -1)
-        assert(addUser(UR, "TESTPASSWORD") == 0)
+        assert(addUser(UR, "TESTPASSWORD", True) == 0)
     # TEST IF USER
     if(True):
-        assert(addUser(UR, "TESTPASSWORD") == -1)
+        assert(addUser(UR, "TESTPASSWORD", True) == -1)
         assert(checkExists("users", "email='" + UR + "'") == True)
         assert(len(getUserSchedule(UR)) == 60)
         assert(setUserSchedule(UR, emptySchedule()) == 0)
@@ -742,7 +921,7 @@ if(False):
         assert(changeMemberRole(UR, CL, True) == -1)
     # TEST IF USER AND NO CLASS
     if(True):
-        addUser(UR, "TESTPASSWORD")
+        addUser(UR, "TESTPASSWORD", True)
         deleteClass(CL)
         assert(joinClass(UR, CL, True) == -1)
         assert(leaveClass(UR, CL) == -1)
@@ -758,7 +937,7 @@ if(False):
         deleteClass(CL)
     # TEST IF USER AND CLASS
     if(True):
-        addUser(UR, "TESTPASSWORD")
+        addUser(UR, "TESTPASSWORD", True)
         addClass(CL, "TEST")
         assert(joinClass(UR, CL, True) == 0)
         assert(changeMemberRole(UR, CL, True) == 0)
