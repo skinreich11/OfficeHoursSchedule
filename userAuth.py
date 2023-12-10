@@ -91,7 +91,7 @@ def login(req):
         user = User()
         user.id = email
         login_user(user)
-        return jsonify({"status": "logged in"})
+        return jsonify({"status": "logged in", "role":user_record[3]})
     return jsonify({"status": "invalid credentials"}), 401
 
 # Logout function
