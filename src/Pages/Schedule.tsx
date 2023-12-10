@@ -5,25 +5,11 @@ import '../Styles/MainPage.css';
 import 'react-calendar/dist/Calendar.css';
 import { Routes, Route, useParams } from 'react-router-dom';
 
-const Schedule = ({arr}: {arr: number[][]}) => {
+const Schedule: React.FC = () => {
     const [date, setDate] = useState(new Date());
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     const times = Array.from({ length: 13 }, (_, index) => index + 7);
-    const multi:number[][] = [
-                               [0, 1, 0, 1, 1, 0],
-                               [1, 0, 0, 1, 0, 0],
-                               [0, 1, 1, 1, 1, 1],
-                               [0, 0, 1, 0, 0, 1],
-                               [0, 1, 0, 0, 1, 0],
-                               [1, 0, 1, 1, 0, 1],
-                               [0, 0, 1, 0, 0, 0],
-                               [1, 1, 1, 0, 1, 1],
-                               [0, 0, 1, 0, 0, 0],
-                               [1, 0, 0, 1, 0, 1],
-                               [1, 1, 0, 1, 1, 0],
-                               [1, 0, 0, 0, 0, 0],
-                               [0, 1, 1, 0, 1, 0]
-                             ];
+    const multi:number[][] = [[]];
     return (
       <table className="time-table">
           <thead>
@@ -41,7 +27,7 @@ const Schedule = ({arr}: {arr: number[][]}) => {
                 {days.map((day, dayIndex) => (
                   <td
                     key={dayIndex}
-                    className={multi[index][dayIndex] === 1 ? 'colored-cell' : ''}
+                    /*className={multi[index][dayIndex] === 1 ? 'colored-cell' : ''*/
                    ></td>
                 ))}
               </tr>

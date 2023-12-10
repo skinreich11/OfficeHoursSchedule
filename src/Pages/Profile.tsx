@@ -1,9 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../Styles/CreateClass.css';
+import Login2 from "../Pages/Login2";
 
 const UserProfile: React.FC = () => {
   const navigate = useNavigate();
+  if(globalThis.userName === null || globalThis.userName === undefined) {return (<Login2/>);}
   return (
     <div className="CreateClassContainer">
       <h1>User Profile</h1>
