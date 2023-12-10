@@ -2,6 +2,7 @@
 # python -m pip install flask
 
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 # from .getSchedules import * #fucking jank ass python import
 from userAuth import login_manager, register_user, login, logout, validate_password
 import psycopg2
@@ -10,6 +11,7 @@ import numpy
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
+CORS(app)
 login_manager.init_app(app)
 app.secret_key = "joe mama is a box of rocks superglued to a donkey's anus"
 # would be best to randomize this or something
