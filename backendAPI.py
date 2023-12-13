@@ -19,7 +19,7 @@ SECRET_KEY = "poophead67"
 SESSION_TYPE = 'filesystem'
 app.config.from_object(__name__)
 Session(app)
-CORS(app)
+CORS(app, supports_credentials=True)
 login_manager.init_app(app)
 # would be best to randomize this or something
 

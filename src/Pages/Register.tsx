@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {fetch2} from '../endpointFunction';
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -19,10 +20,17 @@ const Register: React.FC = () => {
     setRole(event.target.value);
   };
 
-  const handleRegister = () => {
+  const handleRegister = async (): Promise<void> => {
+    const response = await fetch2('/register','POST',{"email":username,"password":password,"role": role === "teacher"});
+    const ret = await response.json().then(ret => {return ret;});
+    console.log(ret);
+    if (response.ok) {
     globalThis.userName = username;
+    globalThis.password = password;
     globalThis.teacher = role === "teacher";
     navigate('/');
+    }
+    else {console.log("failed");}
   };
 
   return (

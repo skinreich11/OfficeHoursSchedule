@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../Styles/CreateClass.css';
-import {fetch2} from '../endpointFunction';
+import {fetch2, fetch3} from '../endpointFunction';
 
 const Login2: React.FC = () => {
   const navigate = useNavigate();
@@ -18,9 +18,11 @@ const Login2: React.FC = () => {
 
   const handleLogin = async (): Promise<void> => {
     const response = await fetch2('/login','POST',{"email":username,"password":password});
+    const ret = await response.json().then(ret => {return ret;});
     if (response.ok) {
         globalThis.userName = username;
         globalThis.password = password;
+        globalThis.teacher = ret["role"];
         navigate('/Home');
     }
     else {console.log("failed");}

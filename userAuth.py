@@ -1,4 +1,4 @@
-from flask import request, jsonify
+from flask import request, jsonify, session
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
 import psycopg2
@@ -103,6 +103,10 @@ def register_user(email, password, is_teacher):
         # # cur.execute("INSERT INTO users VALUES ('" + email + "','" + hashed_password + "',''," + str(is_teacher) + ");")
         # con.commit()
         addUser(email, hashed_password, is_teacher)
+        user = User()
+        user.id = email
+        login_user(user)
+        session.permanent = True
         return jsonify({"message": "User registered successfully"})
     except psycopg2.IntegrityError:
         return jsonify({"error": "Email already in use"}), 409
@@ -121,7 +125,8 @@ def login(req):
         user = User()
         user.id = email
         login_user(user)
-        return jsonify({"status": "logged in"})
+        session.permanent = True
+        return jsonify({"status": "logged in", "role": user_record[3]})
     return jsonify({"status": "invalid credentials"}), 401
 
 # Logout function
