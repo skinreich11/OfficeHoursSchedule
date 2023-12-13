@@ -26,6 +26,7 @@ function App() {
         
         <Routes>
           <Route path = '/' element={<MainPage/>}/>
+          <Route path = '/Home' element={<MainPage/>}/>
           <Route path = '/JoinClass' element={<JoinClass/>}/>
           <Route path = '/Profile' element={<Profile/>}/>
           <Route path = '/CreateClass' element={<CreateClass/>}/>

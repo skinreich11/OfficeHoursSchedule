@@ -1,8 +1,9 @@
 # RUNS ON FLASK
 # python -m pip install flask
 
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask import Flask, request, session
+from flask_session import Session
+from flask_cors import CORS, cross_origin
 # from .getSchedules import * #fucking jank ass python import
 from userAuth import login_manager, register_user, login, logout, validate_password
 import psycopg2
@@ -11,9 +12,15 @@ import numpy
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
+# app.config['SECRET_KEY'] = "poophead67"
+# app.config['filesystem'] = "filesystem"
+app.secret_key = "joe mama is a box of rocks superglued to a donkey's anus"
+SECRET_KEY = "poophead67"
+SESSION_TYPE = 'filesystem'
+app.config.from_object(__name__)
+Session(app)
 CORS(app)
 login_manager.init_app(app)
-app.secret_key = "joe mama is a box of rocks superglued to a donkey's anus"
 # would be best to randomize this or something
 
 #returns a connection with the master account
@@ -75,7 +82,7 @@ def checkExists(table, where):
     cur.execute("select * from " + table + " where " + where + ";")
     if(cur.fetchone() == None):
         return False
-    return True    
+    return True
 
 # checks a string for characters that may break the SQL or be used for SQL injection
 def containsForbidden(string):
@@ -114,14 +121,18 @@ def whoIsTeaching(classid):
     number_of_teachers = len(teachers)
     teacher_schedules = getTeacherSchedules(classid)
     who_is_teaching = []
-   
+
+    # THING THAT PREVENTS A DIVIDE BY 0 ERROR
+    if number_of_teachers == 0:
+        return [[]]
+
     for i in range(len(office_hours_indexes)):
         available_teachers = []
         for teacher in range(number_of_teachers):
             if(teacher_schedules[teacher][office_hours_indexes[i] + 1]):
                 available_teachers.append(teacher_schedules[teacher][0])
         who_is_teaching.append(available_teachers)
-        
+
     teacher_counts = {}
     for day in who_is_teaching:
         for teacher in day:
@@ -131,7 +142,7 @@ def whoIsTeaching(classid):
                 teacher_counts[teacher] = 1
 
     total_days = len(who_is_teaching)
-    desired_count_per_teacher = total_days // len(teacher_counts)
+    desired_count_per_teacher = total_days // len(teacher_counts) # THE DIVIDE BY 0 ERROR
     assigned_days = {teacher: [] for teacher in teacher_counts}
 
     for day_index, day in enumerate(who_is_teaching):
@@ -139,7 +150,7 @@ def whoIsTeaching(classid):
             if len(assigned_days[teacher]) < desired_count_per_teacher:
                 assigned_days[teacher].append(day_index)
                 break
-            
+
     return assigned_days
 
 #returns the schedules of a class
@@ -250,7 +261,7 @@ def setUserName(email, name):
     con.commit()
     return 0
 
-# verifies that a set of email and password corrospond to an existing 
+# verifies that a set of email and password corrospond to an existing
 # returns true if there is a user with that email and password
 # returns false otherwise
 def checkUserCredentials(email, password):
@@ -470,13 +481,13 @@ class ScheduleBuildAndMatch:
         #self.assignment: int = 3
         #self.exam: int = 4
         #self.office_hours: int = 5
-        
+
         self.number_office_hours_per_day = num_office_hours #number of office hours per day
         self.office_hours = [[0] *12 for _ in range(5)] #reset optimal office hours each time to properly overwrite data. Uses persitant counter.txt to set timeslots
         self.teacher_hours = teacher_array
         # self.fetch_counter() #set counter to counter.txt (converts txt to array)
         #set teacher schedule to teacher_schedule.txt (converts txt to array)
-    
+
     #This is the algorithm. Uses numpy argpartition to find indexes of the n(number of office hours per day) highest elements in each day of the week of counter.txt
     def update_office_hours(self, counter):
         self.match_with_teacher(counter)
@@ -484,17 +495,17 @@ class ScheduleBuildAndMatch:
             day_hours = numpy.argpartition(counter[i], -self.number_office_hours_per_day)[-self.number_office_hours_per_day:] #find indexes of n highest elements
             for j in range(self.number_office_hours_per_day): #for number of office hours per day
                 if(counter[i][day_hours[j]] == 0):
-                   break
+                    break
                 self.office_hours[i][day_hours[j]] = 5   #set office_hours array at that timeslot of the n highest counter indicies to 5 (correlates to office hours)
-        return self.office_hours  
-           
-    #This is the function that increments counter based on teacher and student schedule
+        return self.office_hours
+
+        #This is the function that increments counter based on teacher and student schedule
     def match_with_teacher(self, student_schedule):
         for i in range(5):#for each day of the week
             for j in range(12):#for each timeslot of each day
                 if(self.teacher_hours[i][j] == 0): #if teacher and student are both available at a timeslot
                     student_schedule[i][j] = 0 #increment counter by 1 at this timeslot
-       
+
 def convertToArray(schedule):
     scheduleArray = [[None, [[0] *12 for _ in range(5)]]]
     for k in range(len(schedule)):
@@ -557,11 +568,21 @@ def genCounter(schedules):
 #   -3: NO PERMISSION
 #   PATCH requests return a json object containing the relevant attributes and a boolean for if it succeeded or not
 
-# TODO: 
-    # N/A
+# TODO:
+# N/A
+
+@app.route("/myass/")
+@cross_origin(supports_credentials=True)
+def myass():
+    print(session.sid)
+    # session["poop"] = "pee"
+    # print(session["uid"])
+    return {"sid":session.sid}
 
 # FOR TESTING, COMMENT OUT IN FINAL VERSION
 # DOESN'T REQUIRE AUTHENTICATION
+# GET METHODS NOT SUPPORTED BY ANY REQUEST LIBRARIES THAT DON'T SUPPORT BODIES ON GET REQUESTS
+#       EXAMPLE: fetch for javascript
 # ORDER OF "data"
 # 0. email
 # 1. classid
@@ -584,7 +605,7 @@ def backdoor():
                         "name": details[1],
                         "role": details[2],
                         "schedule":(details[3:15], details[15:27], details[27:39], details[39:51], details[51:63])
-                        }
+                    }
                 case "classes":
                     details = getClassDetails(req['data'][1])
                     if(details == -1):
@@ -631,6 +652,7 @@ def backdoor():
 
 # register
 @app.route('/register', methods=['POST'])
+@cross_origin(supports_credentials=True)
 def register():
     req = request.get_json()
     if("email" not in req or "password" not in req or "role" not in req):
@@ -638,55 +660,62 @@ def register():
     return register_user(req["email"], req["password"], req["role"])
 
 # login
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['GET', 'POST'])
+@cross_origin(supports_credentials=True)
 def user_login():
-    return login(request.get_json())
+    req = request.get_json()
+    # req = {"email":"realstudent@umass.edu", "password":"1!Password"}
+    # loogie = login(req)
+    return login(req)
 
 # logout
 @app.route('/logout')
+@cross_origin(supports_credentials=True)
 def user_logout():
     return logout()
 
+# get user data endpoint
+@app.route('/users/<data>/', methods=['GET'])
+@cross_origin(supports_credentials=True)
+@login_required
+def U1(data):
+    match data:
+        case "profile":
+            details = (getUserDetails(current_user.id))
+            if(details == -1):
+                return {"status":-1, "id":current_user.id}
+            return {
+                "email": details[0],
+                "name": details[1],
+                "role": details[2],
+                "schedule":(details[3:15], details[15:27], details[27:39], details[39:51], details[51:63]),
+                "status":0
+            }
+        case "schedule":
+            details = getUserSchedule(current_user.id)
+            if(details == -1):
+                return {"status":-1}
+            return {
+                "schedule":(details[0:12], details[12:24], details[24:36], details[36:48], details[48:60]),
+                "status":0
+            }
+        case "name":
+            details = getUserName(current_user.id)
+            if(details == -1):
+                return {"status":-1}
+            return {
+                "name":details,
+                "status":0
+            }
+        case _:
+            return {"status:-2"}, 400
+
 # handles user related stuff
-@app.route('/users/', methods=['GET', 'PATCH', 'DELETE'])
+@app.route('/users/', methods=['PATCH', 'DELETE'])
 @login_required
 def U():
     req = request.get_json()
     match request.method:
-        case 'GET':
-            if('data' not in req):
-                print(current_user.id)
-                return {"status":-2}, 400
-            match req['data']:
-                case 'profile':
-                    details = (getUserDetails(current_user.id))
-                    if(details == -1):
-                        return {"status":-1}
-                    return {
-                        "email": details[0],
-                        "name": details[1],
-                        "role": details[2],
-                        "schedule":(details[3:15], details[15:27], details[27:39], details[39:51], details[51:63]),
-                        "status":0
-                        }
-                case 'schedule':
-                    details = getUserSchedule(current_user.id)
-                    if(details == -1):
-                        return {"status":-1}
-                    return {
-                        "schedule":(details[0:12], details[12:24], details[24:36], details[36:48], details[48:60]),
-                        "status":0
-                        }
-                case 'name':
-                    details = getUserName(current_user.id)
-                    if(details == -1):
-                        return {"status":-1}
-                    return {
-                        "name":details,
-                        "status":0
-                        }
-                case _:
-                    return {"status":-2}, 400
         case 'PATCH':
             ret = {"status":0}
             if "schedule" in req:
@@ -737,52 +766,49 @@ def U():
             return {"status":-2}, 400
 
 # handles class related stuff
-@app.route("/classes/", methods=['GET'])
-def C1():
-    req = request.get_json()
-    if('id' not in req or 'data' not in req):
-        return {"status":-2}, 400
-    match req['data']:
-                case 'all':
-                    details = getClassDetails(req['id'])
-                    if(details == -1):
-                        return {"status":-1}, 404
-                    return {
-                        "classid": details[0],
-                        "name": details[1],
-                        "schedule":(details[2:14], details[14:26], details[26:38], details[38:50], details[50:62]),
-                        "officehours":(details[62:74], details[74:86], details[86:98], details[98:110], details[110:122]),
-                        "status":0
-                    }
-                case 'name':
-                    details = getClassName(req['id'])
-                    if(details == -1):
-                        return {"status":-1}, 404
-                    return {
-                    "name":details,
-                    "status":0
-                    }
-                case 'schedule':
-                    details = getClassSchedule(req['id'])
-                    if(details == -1):
-                        return {"status":-1}, 404
-                    return {
-                        "schedule":(details[0:12], details[12:24], details[24:36], details[36:48], details[48:60]),
-                        "status":0
-                        }
-                case 'officehours':
-                    details = getClassOfficeHours(req['id'])
-                    teacher_array = whoIsTeaching(req['id'])
-                    if(details == -1):
-                        return {"status":-1}, 404
-                    
-                    return {
-                        "officehours":(details[0:12], details[12:24], details[24:36], details[36:48], details[48:60]),
-                        "instructors for each day": teacher_array,
-                        "status":0
-                        }
-                case _:
-                    return {"status":-2}, 400
+@app.route("/classes/<data>/<id>/", methods=['GET'])
+def C1(data, id):
+    match data:
+        case 'all':
+            details = getClassDetails(id)
+            if(details == -1):
+                return {"status":-1}, 404
+            return {
+                "classid": details[0],
+                "name": details[1],
+                "schedule":(details[2:14], details[14:26], details[26:38], details[38:50], details[50:62]),
+                "officehours":(details[62:74], details[74:86], details[86:98], details[98:110], details[110:122]),
+                "status":0
+            }
+        case 'name':
+            details = getClassName(id)
+            if(details == -1):
+                return {"status":-1}, 404
+            return {
+                "name":details,
+                "status":0
+            }
+        case 'schedule':
+            details = getClassSchedule(id)
+            if(details == -1):
+                return {"status":-1}, 404
+            return {
+                "schedule":(details[0:12], details[12:24], details[24:36], details[36:48], details[48:60]),
+                "status":0
+            }
+        case 'officehours':
+            details = getClassOfficeHours(id)
+            if(details == -1):
+                return {"status":-1}, 404
+            teacher_array = whoIsTeaching(id)
+
+            return {
+                "officehours":(details[0:12], details[12:24], details[24:36], details[36:48], details[48:60]),
+                "instructors for each day": teacher_array,
+                "status":0
+            }
+        case _:
+            return {"status":-2}, 400
 
 @app.route("/classes/", methods=['POST', 'PATCH', 'DELETE'])
 @login_required
@@ -824,7 +850,7 @@ def C():
                 else:
                     ret['name'] = -1
                     ret["status"] = -1
-            if('officehours' in req): # PART THAT THE ALGORITHM RUNS AT 
+            if('officehours' in req): # PART THAT THE ALGORITHM RUNS AT
                 if(checkExists("classes", "classid=" + str(req["id"]))):
                     hours = FindOptimalOfficeHours(req['id'], req["officehours"])
                     if(setClassOfficeHours(req['id'], convertArrayToTuple(hours)) == 0):
@@ -843,20 +869,24 @@ def C():
         case _:
             return {"status":-2}, 400
 
-# handles stuff related to user-class pairs/entries in userclasses
-@app.route("/users/classes/", methods=["GET", "POST", "PATCH", "DELETE"])
+# handles the GET part of /users/classes/
+@app.route("/users/classes/", methods=["GET"])
+@login_required
+def UC1():
+    details = getUserClasses(current_user.id)
+    if(details == -1):
+        return {"status":-1}, 404
+    return {
+        "classes":details,
+        "status":0
+    }
+
+# handles stuff related to user-class pairs/entries in userclasses aside from GET
+@app.route("/users/classes/", methods=["POST", "PATCH", "DELETE"])
 @login_required
 def UC():
     req = request.get_json()
     match request.method:
-        case "GET":
-            details = getUserClasses(current_user.id)
-            if(details == -1):
-                return {"status":-1}, 404
-            return {
-                "classes":details,
-                "status":0
-            }
         case "POST":
             if("id" not in req):
                 return {"status":-2}, 400
@@ -864,7 +894,7 @@ def UC():
                 return {"status":-1}, 400
             dat = joinClass(current_user.id, req["id"], False)
             if dat == -1:
-                return {"status":dat}, 404 
+                return {"status":dat}, 404
             return {"status":dat}
         case "PATCH":
             if("id" not in req or "email" not in req or "role" not in req):
@@ -892,19 +922,14 @@ def UC():
             return {"status":-2}, 400
 
 # just for getting the members of a class
-@app.route("/classes/students/", methods=["GET"])
+@app.route("/classes/students/<id>/", methods=["GET"])
 @login_required
-def CS():
-    req = request.get_json()
-    if("id" not in req):
-        return {"status":-2}, 400
-    if(not isinstance(req['id'], int)):
-        return {"status":-1}, 400
-    if not isTeacherInClass(current_user.id, req["id"]):
+def CS(id):
+    if not isTeacherInClass(current_user.id, id):
         return {"status":-3}, 403
     match request.method:
         case "GET":
-            details = getClassMembers(req["id"])
+            details = getClassMembers(id)
             if(details == -1):
                 return {"status":-1}, 404
             return {

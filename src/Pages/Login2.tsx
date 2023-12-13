@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../Styles/CreateClass.css';
+import {fetch2} from '../endpointFunction';
 
 const Login2: React.FC = () => {
   const navigate = useNavigate();
@@ -15,9 +16,14 @@ const Login2: React.FC = () => {
     setPassword(event.target.value);
   };
 
-  const handleLogin = () => {
-    globalThis.userName = username;
-    navigate('/');
+  const handleLogin = async (): Promise<void> => {
+    const response = await fetch2('/login','POST',{"email":username,"password":password});
+    if (response.ok) {
+        globalThis.userName = username;
+        globalThis.password = password;
+        navigate('/Home');
+    }
+    else {console.log("failed");}
   };
   const handleRegister = () => {
       // Handle registration logic (redirect to registration page, etc.)
@@ -50,8 +56,8 @@ const Login2: React.FC = () => {
           />
         </div>
         <div>
-          <button type="submit" onClick={() => handleLogin()}>Login</button>
-          <button type="button" onClick={() => handleRegister()}>Register</button>
+          <button type="submit" onClick={handleLogin}>Login</button>
+          <button type="button" onClick={handleRegister}>Register</button>
         </div>
       </form>
     </div>

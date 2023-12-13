@@ -27,6 +27,35 @@ def readConnect():
 def writeConnect():
     return connect()
 
+# returns a string of 60 zeros separated by commas
+def stringEmptySchedule():
+    string = "0"
+    for i in range(59):
+        string += ",0"
+    return string
+
+#checks if some object exists in a table
+# table: string, the table to look in
+# where: string, the condition to specify the entry, format as "ATTRIBUTE=VALUE" or "ATT1=VAL1 and ATT2=VAL2"
+def checkExists(table, where):
+    cur = readConnect()
+    cur.execute("select * from " + table + " where " + where + ";")
+    if(cur.fetchone() == None):
+        return False
+    return True
+
+#adds a user to the databases
+# returns 0 on success
+# returns -1 on failure due to email in use
+def addUser(email, password, role):
+    if(checkExists("users", "email='" + email + "'")):
+        return -1
+    con = writeConnect()
+    cur = con.cursor()
+    cur.execute("insert into users values ('" + email + "','" + password + "',''," + str(role) + ");")
+    cur.execute("insert into userschedule values ('" + email + "'," + stringEmptySchedule() + ");")
+    con.commit()
+    return 0
 
 # Initialize the login manager
 login_manager = LoginManager()
@@ -54,25 +83,26 @@ def user_loader(email):
 
 # Function to register a new user
 def register_user(email, password, is_teacher):
-    
+
     if not is_valid_umass_email(email):
         return jsonify({"error": "Invalid email format"}), 400
-    
+
     valid, message = validate_password(password)
     if not valid:
         return jsonify({"error": message}), 400
-    
-    
+
+
     # role = True if is_teacher.lower() == 'true' else False
     # role = is_teacher
 
     hashed_password = generate_password_hash(password)
     try:
-        con = writeConnect()
-        cur = con.cursor()
-        #cur.execute("INSERT INTO users (email, password, role) VALUES (%s, %s, %s);", (email, hashed_password, role))
-        cur.execute("INSERT INTO users VALUES ('" + email + "','" + hashed_password + "',''," + str(is_teacher) + ");")
-        con.commit()
+        # con = writeConnect()
+        # cur = con.cursor()
+        # #cur.execute("INSERT INTO users (email, password, role) VALUES (%s, %s, %s);", (email, hashed_password, role))
+        # # cur.execute("INSERT INTO users VALUES ('" + email + "','" + hashed_password + "',''," + str(is_teacher) + ");")
+        # con.commit()
+        addUser(email, hashed_password, is_teacher)
         return jsonify({"message": "User registered successfully"})
     except psycopg2.IntegrityError:
         return jsonify({"error": "Email already in use"}), 409
@@ -91,7 +121,7 @@ def login(req):
         user = User()
         user.id = email
         login_user(user)
-        return jsonify({"status": "logged in", "role":user_record[3]})
+        return jsonify({"status": "logged in"})
     return jsonify({"status": "invalid credentials"}), 401
 
 # Logout function
