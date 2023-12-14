@@ -1,4 +1,4 @@
-from flask import request, jsonify, session
+from flask import request, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
 import psycopg2
@@ -96,20 +96,21 @@ def register_user(email, password, is_teacher):
     # role = is_teacher
 
     hashed_password = generate_password_hash(password)
-    try:
-        # con = writeConnect()
-        # cur = con.cursor()
-        # #cur.execute("INSERT INTO users (email, password, role) VALUES (%s, %s, %s);", (email, hashed_password, role))
-        # # cur.execute("INSERT INTO users VALUES ('" + email + "','" + hashed_password + "',''," + str(is_teacher) + ");")
-        # con.commit()
-        addUser(email, hashed_password, is_teacher)
-        user = User()
-        user.id = email
-        login_user(user)
-        session.permanent = True
-        return jsonify({"message": "User registered successfully"})
-    except psycopg2.IntegrityError:
+    # try:
+    # con = writeConnect()
+    # cur = con.cursor()
+    # #cur.execute("INSERT INTO users (email, password, role) VALUES (%s, %s, %s);", (email, hashed_password, role))
+    # # cur.execute("INSERT INTO users VALUES ('" + email + "','" + hashed_password + "',''," + str(is_teacher) + ");")
+    # con.commit()
+    if checkExists("users", "email='" + email + "'"):
         return jsonify({"error": "Email already in use"}), 409
+    addUser(email, hashed_password, is_teacher)
+    user = User()
+    user.id = email
+    login_user(user)
+    return jsonify({"message": "User registered successfully"})
+    # # except psycopg2.IntegrityError:
+    #     return jsonify({"error": "Email already in use"}), 409
 
 # Login function
 def login(req):
@@ -125,8 +126,7 @@ def login(req):
         user = User()
         user.id = email
         login_user(user)
-        session.permanent = True
-        return jsonify({"status": "logged in", "role": user_record[3]})
+        return jsonify({"status": "logged in", "role":user_record[3]})
     return jsonify({"status": "invalid credentials"}), 401
 
 # Logout function

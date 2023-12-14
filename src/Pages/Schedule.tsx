@@ -13,32 +13,56 @@ const check = async (): Promise<void> => {
     else {
         //const reLogin = await fetch2('/login','POST',{"email":globalThis.userName,"password":globalThis.password});
         const response = await fetch3('/users/schedule/', 'GET');
-        const ret = await response.json().then(ret => {return ret["schedule"];});
+        const ret = await response.json().then(ret => {return ret;});
         return ret;
     }
 }
 const Schedule = () => {
     const [date, setDate] = useState(new Date());
     const [multi, setMulti] = useState([
-    [0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0,0,0]
-    ]);
+                                  [0,0,0,0,0,0,0,0,0,0,0,0],
+                                  [0,0,0,0,0,0,0,0,0,0,0,0],
+                                  [0,0,0,0,0,0,0,0,0,0,0,0],
+                                  [0,0,0,0,0,0,0,0,0,0,0,0],
+                                  [0,0,0,0,0,0,0,0,0,0,0,0],
+                                  ]);
     useEffect( () => {
         async function fetchData() {
         try {
             const res = await check();
-            setMulti(res);
+            if(res === [[]]) {return;}
+            if(res.ok)
+            console.log(res["schedule"]);
+            setMulti(res["schedule"]);
         } catch (err) {
           console.log(err);
         }
     }
                 fetchData();
             }, []);
+    const flipArr = () => {
+        let restt:number[][] = [[0,0,0,0,0],
+        [0,0,0,0,0],
+        [0,0,0,0,0],
+        [0,0,0,0,0],
+        [0,0,0,0,0],
+        [0,0,0,0,0],
+        [0,0,0,0,0],
+        [0,0,0,0,0],
+        [0,0,0,0,0],
+        [0,0,0,0,0],
+        [0,0,0,0,0],
+        [0,0,0,0,0]]
+        for(let i = 0; i < 5; i++) {
+            for(let j = 0; j < 12; j++) {
+                restt[j][i] = multi[i][j];
+            }
+        }
+        return restt;
+    }
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const times = Array.from({ length: 13 }, (_, index) => index + 7);
+    const times = Array.from({ length: 12 }, (_, index) => index + 7);
+    const resultArr = flipArr();
     return (
       <table className="time-table">
           <thead>
@@ -56,7 +80,7 @@ const Schedule = () => {
                 {days.map((day, dayIndex) => (
                   <td
                     key={dayIndex}
-                    className={multi.length !== 0 ? multi[dayIndex][index] === 1 ? 'colored-cell' : '' : ""}
+                    className={multi.length !== 0 ? resultArr[index][dayIndex] !== 0 ? 'colored-cell' : '' : ""}
                    ></td>
                 ))}
               </tr>

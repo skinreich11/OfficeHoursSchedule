@@ -36,10 +36,6 @@ const Register: React.FC = () => {
   return (
     <div>
       <h2>Register</h2>
-      <form onSubmit={(e) => {
-        e.preventDefault(); // Prevent form submission (for this example)
-        handleRegister();
-      }}>
         <div>
           <label htmlFor="username">Username:</label>
           <input
@@ -67,9 +63,8 @@ const Register: React.FC = () => {
           </select>
         </div>
         <div>
-          <button type="submit">Register</button>
+          <button type="submit" onClick={handleRegister}>Register</button>
         </div>
-      </form>
     </div>
   );
 };

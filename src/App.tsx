@@ -8,8 +8,10 @@ import Login2 from "./Pages/Login2";
 import Signup from "./Pages/Signup";
 import Register from "./Pages/Register";
 import CreateClass from "./Pages/CreateClass"
+import UnavailableTime from "./Pages/UnavailableTime"
 import Profile from "./Pages/Profile"
 import JoinClass from "./Pages/JoinClass"
+import ManageClasses from "./Pages/ManageClasses"
 import './App.css';
 import CourseManager from './Pages/CourseManager';
 
@@ -30,6 +32,7 @@ function App() {
           <Route path = '/JoinClass' element={<JoinClass/>}/>
           <Route path = '/Profile' element={<Profile/>}/>
           <Route path = '/CreateClass' element={<CreateClass/>}/>
+          <Route path = '/UnavailableTime' element={<UnavailableTime/>}/>
         </Routes>
         <Routes>
           <Route path = '/login' element={<Login2/>}/>
@@ -40,6 +43,7 @@ function App() {
         </Routes>
         <Routes>
           <Route path = '/courses' element={<CourseManager/>}/>
+          <Route path = '/ManageClasses' element={<ManageClasses/>}/>
         </Routes>
       </div> 
   </Router>
