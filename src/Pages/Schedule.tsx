@@ -14,6 +14,7 @@ const check = async (): Promise<void> => {
         //const reLogin = await fetch2('/login','POST',{"email":globalThis.userName,"password":globalThis.password});
         const response = await fetch3('/users/schedule/', 'GET');
         const ret = await response.json().then(ret => {return ret;});
+        console.log(ret);
         return ret;
     }
 }

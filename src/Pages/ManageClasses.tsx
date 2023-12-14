@@ -70,7 +70,7 @@ const ManageClasses = () => {
     const generateOH = async (classid): Promise<void> => {
             const response = await fetch3('/classes/', 'PATCH', {"id": classid, "officehours": 1});
             const ret = await response.json().then(ret => {return ret;});
-            console.log(ret);
+            navigate('/ManageClasses')
     }
 
     /*const completelyDeleteClass = async (classid, schedule): Promise<void> => {
@@ -134,6 +134,7 @@ const ManageClasses = () => {
         {multi.map((classItem, index) => (
             <li key={index}>
                 <strong>Class Name:</strong> {classItem["name"]+ " "}
+                <strong>Class ID:</strong> {classItem["classid"]+ " "}
                 <strong>Office Hours:</strong> {processArray(classItem["officehours"])}
                 <strong>Lecture Hours:</strong> {processArray(classItem["schedule"])}
                 {!globalThis.teacher ? <button onClick={() => deleteClass(classItem["classid"], classItem["schedule"])}>

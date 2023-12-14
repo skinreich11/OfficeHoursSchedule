@@ -494,7 +494,7 @@ class ScheduleBuildAndMatch:
         for i in range(5): #for each day of the week
             day_hours = numpy.argpartition(counter[i], -self.number_office_hours_per_day)[-self.number_office_hours_per_day:] #find indexes of n highest elements
             for j in range(self.number_office_hours_per_day): #for number of office hours per day
-                if(counter[i][day_hours[j]] == 0):
+                if(counter[i][day_hours[j]] != 0):
                     break
                 self.office_hours[i][day_hours[j]] = 5   #set office_hours array at that timeslot of the n highest counter indicies to 5 (correlates to office hours)
         return self.office_hours
