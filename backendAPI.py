@@ -471,7 +471,7 @@ def getClassMembers(classID):
 # ALGORITHM STUFF
 
 class ScheduleBuildAndMatch:
-    def __init__(self, teacher_array, num_office_hours):
+    def __init__(self, teacher_array, num_office_hours, classid):
         #Below are constants matched with states of time slots on schedule
         self.busy: int = 0
         #self.free: int = 1
@@ -483,6 +483,8 @@ class ScheduleBuildAndMatch:
         self.number_office_hours_per_day = num_office_hours #number of office hours per day
         self.office_hours = [[0] *12 for _ in range(5)] #reset optimal office hours each time to properly overwrite data. Uses persitant counter.txt to set timeslots
         self.teacher_hours = teacher_array
+        self.num_teachers = len(getTeacherSchedules(classid))
+        self.num_students = len(getStudentSchedules(classid))
         # self.fetch_counter() #set counter to counter.txt (converts txt to array)
         #set teacher schedule to teacher_schedule.txt (converts txt to array)
 
@@ -490,19 +492,18 @@ class ScheduleBuildAndMatch:
     def update_office_hours(self, counter):
         self.match_with_teacher(counter)
         for i in range(5): #for each day of the week
-            day_hours = numpy.argpartition(counter[i], -self.number_office_hours_per_day)[-self.number_office_hours_per_day:] #find indexes of n highest elements
-            for j in range(self.number_office_hours_per_day): #for number of office hours per day
-                if(counter[i][day_hours[j]] != 0):
-                    break
-                self.office_hours[i][day_hours[j]] = 5   #set office_hours array at that timeslot of the n highest counter indicies to 5 (correlates to office hours)
+            day_hours = numpy.argmin(counter[i]) #find indexes of n highest elements #for number of office hours per day
+            if(counter[i][day_hours] == self.num_students):
+                continue
+            self.office_hours[i][day_hours] = 5   #set office_hours array at that timeslot of the n highest counter indicies to 5 (correlates to office hours)
         return self.office_hours
 
         #This is the function that increments counter based on teacher and student schedule
     def match_with_teacher(self, student_schedule):
         for i in range(5):#for each day of the week
             for j in range(12):#for each timeslot of each day
-                if(self.teacher_hours[i][j] == 0): #if teacher and student are both available at a timeslot
-                    student_schedule[i][j] = 0 #increment counter by 1 at this timeslot
+                if(self.teacher_hours[i][j] == self.num_teachers): #if teacher and student are both available at a timeslot
+                    student_schedule[i][j] = self.num_teachers #increment counter by 1 at this timeslot
 
 def convertToArray(schedule):
     scheduleArray = [[None, [[0] *12 for _ in range(5)]]]
@@ -537,7 +538,7 @@ def convertArrayToTuple(schedule):
 def FindOptimalOfficeHours(classID, numberOfficeHours):
     student_hours = genCounter(convertToArray(getStudentSchedules(classID)))
     teacher_hours = genCounter(convertToArray(getTeacherSchedules(classID)))
-    BuildSchedule = ScheduleBuildAndMatch(teacher_hours, numberOfficeHours)
+    BuildSchedule = ScheduleBuildAndMatch(teacher_hours, numberOfficeHours, classID)
     return BuildSchedule.update_office_hours(student_hours)
 
 def buildEmptyCounter():

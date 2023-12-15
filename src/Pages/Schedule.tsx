@@ -6,20 +6,23 @@ import 'react-calendar/dist/Calendar.css';
 import { Routes, Route, useParams } from 'react-router-dom';
 import {fetch2, fetch3} from '../endpointFunction';
 
+//async function called to load up the user schedule upon page load
+//checks that the user is logged in, if not return empty array
+//otherwise response: calls GET request to get the current user's schedule and returns it
 const check = async (): Promise<void> => {
     if(globalThis.userName === null || globalThis.userName === undefined) {
         return [[]];
     }
     else {
-        //const reLogin = await fetch2('/login','POST',{"email":globalThis.userName,"password":globalThis.password});
         const response = await fetch3('/users/schedule/', 'GET');
         const ret = await response.json().then(ret => {return ret;});
-        console.log(ret);
         return ret;
     }
 }
+
+//function that returns the React element for user registration
 const Schedule = () => {
-    const [date, setDate] = useState(new Date());
+    //multi:number[][] keeps track of the current schedule array
     const [multi, setMulti] = useState([
                                   [0,0,0,0,0,0,0,0,0,0,0,0],
                                   [0,0,0,0,0,0,0,0,0,0,0,0],
@@ -27,6 +30,8 @@ const Schedule = () => {
                                   [0,0,0,0,0,0,0,0,0,0,0,0],
                                   [0,0,0,0,0,0,0,0,0,0,0,0],
                                   ]);
+    //used to call the async function with properly waiting for the await function to respond and data to load
+    //also does not trigger an infinite render loop with the setMulti function call
     useEffect( () => {
         async function fetchData() {
         try {
@@ -41,6 +46,8 @@ const Schedule = () => {
     }
                 fetchData();
             }, []);
+    //arrays are stored as 5x12 in database but for display need to be 12x5 so this function flips the arrays
+    //for displaying purposes
     const flipArr = () => {
         let restt:number[][] = [[0,0,0,0,0],
         [0,0,0,0,0],
@@ -61,9 +68,12 @@ const Schedule = () => {
         }
         return restt;
     }
+    //days:string[] used for display purposes
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    //times:number[] used for displaying purposes
     const times = Array.from({ length: 12 }, (_, index) => index + 7);
     const resultArr = flipArr();
+    //React element returned, no user interaction here
     return (
       <table className="time-table">
           <thead>

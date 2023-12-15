@@ -5,6 +5,7 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
+//main componant that renders the frontend of the app and all the react elements within it
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );

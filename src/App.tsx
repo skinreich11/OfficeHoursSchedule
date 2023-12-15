@@ -15,6 +15,8 @@ import ManageClasses from "./Pages/ManageClasses"
 import './App.css';
 import CourseManager from './Pages/CourseManager';
 
+//main app componant, called by index as the app render, sets all the routes of the app to their corresponding page
+//displays the nav bar
 function App() {
   return (
     <Router> 

@@ -3,19 +3,30 @@ import { useNavigate } from 'react-router-dom';
 import '../Styles/CreateClass.css';
 import {fetch2, fetch3} from '../endpointFunction';
 
+//function that returns the React element for logging in
 const Login2: React.FC = () => {
+  //navigate used to load different pages to follow the workflow of the app
   const navigate = useNavigate();
+  //username:string used to track the username set by the user
   const [username, setUsername] = useState('');
+  //password:string used to track the password set by the user
   const [password, setPassword] = useState('');
 
+  //function called upon change of the username set by the user, uses setUsername to change the value of the
+  //username set and keeps track of them through it for future applications
   const handleUsernameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setUsername(event.target.value);
   };
-
+  //function called upon change of the password set by the user, uses setPasswordto change the value of the
+  //password set and keeps track of them through it for future applications
   const handlePasswordChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setPassword(event.target.value);
   };
 
+  //async function that handles the login once the user click login
+  //First checks the username is not set to anything
+  //response: calls a GET requests to login a user with the username and password provided
+  //if true, sets the global variable of the username, password, and role to their respective values and navigates home
   const handleLogin = async (): Promise<void> => {
     if(username !== '') {
     const response = await fetch2('/login','POST',{"email":username,"password":password});
@@ -29,11 +40,14 @@ const Login2: React.FC = () => {
     else {console.log("failed");}
    }
   };
+
+  //If the user clicked register, go to register page
   const handleRegister = () => {
       // Handle registration logic (redirect to registration page, etc.)
       navigate('/Register');
     };
 
+  //React element returned that calls the appropriate functions either onChange or onClick
   return (
     <div className="CreateClassContainer">
       <h2>Login</h2>

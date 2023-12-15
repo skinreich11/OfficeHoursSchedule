@@ -2,16 +2,28 @@ import React, { useState } from 'react';
 import { Route, Routes, Navigate, BrowserRouter as Router } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import '../Styles/CreateClass.css';
+import Login2 from "../Pages/Login2";
 import {fetch2, fetch3} from '../endpointFunction';
 
+//counter:number used to get the next available ID for a class
 let counter = 40;
+//function that returns the React element for creating a class
 const ClassCreationPage: React.FC = () => {
-  const navigate = useNavigate();
-  const [className, setClassName] = useState('');
-  const [selectedDays, setSelectedDays] = useState<number[]>([]);
-    const [selectedTime, setSelectedTime] = useState<number>();
 
+  //navigate used to load different pages to follow the workflow of the app
+  const navigate = useNavigate();
+  //className:string used to store the className set by the user for the class
+  const [className, setClassName] = useState('');
+  //selectedTime:number[] used to store the integer representing
+  //the days selected by the user for the class lecture days
+  const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  //selectedTime:number used to store the integer representing
+  //the times selected by the user for the class lecture times
+  const [selectedTime, setSelectedTime] = useState<number>();
+
+    //days:string[] used for display purposes
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    //times:string[] used for display purposes
     const times = [
       '7:00 - 8:00',
       '8:00 - 9:00',
@@ -27,6 +39,8 @@ const ClassCreationPage: React.FC = () => {
       '18:00 - 19:00',
     ];
 
+    //function called upon change of the days selected by the user, uses setSelectedDays to change the value of the
+    //days selected and keeps track of them through their index and not string value for future applications
     const handleDayClick = (index: number) => {
       const isSelected = selectedDays.includes(index);
       if (isSelected) {
@@ -36,14 +50,25 @@ const ClassCreationPage: React.FC = () => {
       }
     };
 
+    //function called upon change of the time selected by the user, uses setSelectedTime to change the value of the
+    //time selected and keeps track of it through its index and not string value for future applications
     const handleTimeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
       const timeIndex = parseInt(event.target.value);
       setSelectedTime(timeIndex);
     };
-  const handleClassNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    //function called upon change of the name of the class set by the user, uses setClassName
+    //to change the value of the class name and keeps track of it
+    const handleClassNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       setClassName(event.target.value);
     };
 
+  //async function that is called when the user clicks the button to create a class
+  //response: calls fetch2() which calls the fetch API with server URL + '/classes/' as a POST call,
+  //with the json body 'id':counter and "name":className to create a class. If response was wrong,
+  //update counter and call it again until it finds an ID that is available.
+  //It also fetches the user's schedule and updates it to add the lecture times set by the user to the users schedule
+  //Through the GET (response2) and PATCH (response3) fetch calls.
+  //If everything worked accordingly the function calls navigate('/Home') which returns back to home
   const handleCreateClass = async (): Promise<void> => {
     const response = await fetch2('/classes/','POST',{"id":counter,"name":className});
     const ret = await response.json().then(ret => {return ret;});
@@ -61,7 +86,7 @@ const ClassCreationPage: React.FC = () => {
         for(let i = 0; i < 5; i++) {
             for(let j = 0; j< 12; j++) {
                 if(selectedDays.includes(i) && j === selectedTime) {
-                   schedule[i][j] = 10;
+                   schedule[i][j] = 1;
                  }
             }
         }
@@ -81,7 +106,9 @@ const ClassCreationPage: React.FC = () => {
         }
     }
   };
-
+  //If user is not logged in, return the Login react element instead of this page
+  if(globalThis.userName === null || globalThis.userName === undefined) {return (<Login2/>);}
+  //React element returned that calls the appropriate functions either onChange or onClick
   return (
     <div className="CreateClassContainer">
       <h2>Create a College Class</h2>
