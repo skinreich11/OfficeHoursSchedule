@@ -12,16 +12,13 @@ import numpy
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
-# app.config['SECRET_KEY'] = "poophead67"
-# app.config['filesystem'] = "filesystem"
-app.secret_key = "joe mama is a box of rocks superglued to a donkey's anus"
-SECRET_KEY = "poophead67"
+app.secret_key = "The FitnessGram™ Pacer Test is a multistage aerobic capacity test that progressively gets more difficult as it continues. The 20 meter pacer test will begin in 30 seconds. Line up at the start. The running speed starts slowly, but gets faster each minute after you hear this signal. [beep] A single lap should be completed each time you hear this sound. [ding] Remember to run in a straight line, and run as long as possible. The second time you fail to complete a lap before the sound, your test is over. The test will begin on the word start. On your mark, get ready, start."
+SECRET_KEY = "haljhfoa8oey5ioryhwonrnarioCGBGKfuyiHOThehCSdnnAOIJHDANIHUI&UGUYUYFFDRTTDKLLKWDGJKA%^E@h78R5d5F6&&*h8hg&*Gf^%45$a32a#A4sdfGh(hiG9G)IHHgftyftyytttttt"
 SESSION_TYPE = 'filesystem'
 app.config.from_object(__name__)
 Session(app)
 CORS(app, supports_credentials=True)
 login_manager.init_app(app)
-# would be best to randomize this or something
 
 #returns a connection with the master account
 #remove in final version and replace with some account that only has permission to make, delete, and update table entries in the officehours db
@@ -53,7 +50,8 @@ def buildScheduleQuery():
             string += ", d" + str(x) + "h" + str(y)
     return string
 
-# previous function but better, I forgot why I kept the original around. Maybe TABLE.ATT doesn't work without a joined table
+# previous function but better, I forgot why I kept the original around. Maybe TABLE.ATT doesn't work without a joined table.
+# returns a string for a schedule query that fetches from the input table.
 def buildJoinedScheduleQuery(table):
     string = table + ".d1h1"
     for x in range(2, 13):
@@ -102,7 +100,7 @@ def getOfficeHoursIndex(office_hours):
             indexes.append(i)
     return indexes
 
-#returns the teachers from a class
+#returns the teachers from a class in an array
 def getTeachers(classid):
     if(not checkExists("classes", "classid=" + str(classid))):
         return -1
@@ -153,7 +151,7 @@ def whoIsTeaching(classid):
 
     return assigned_days
 
-#returns the schedules of a class
+#returns the schedules of a class along with the users they are associated with
 def getSchedules(classid, teacher):
     if(not checkExists("classes", "classid=" + str(classid))):
         return -1
@@ -168,11 +166,11 @@ def getSchedules(classid, teacher):
         return []
     return ret
 
-#returns all the student schedules of a class
+#returns all the student schedules of a class, uses getSchedules
 def getStudentSchedules(classid):
     return getSchedules(classid, "false")
 
-#returns all the teacher schedules of a class
+#returns all the teacher schedules of a class, uses getSchedules
 def getTeacherSchedules(classid):
     return getSchedules(classid, "true")
 
@@ -204,7 +202,7 @@ def getClassOfficeHours(classID):
         return -1
     return ret
 
-#swaps out a schedule
+#updates a schedule by replacing it. 
 def setSchedule(table, field, key, schedule):
     if(not checkExists(table, field + "=" + key)):
         return -1
@@ -224,15 +222,15 @@ def setSchedule(table, field, key, schedule):
     con.commit()
     return 0
 
-#sets a user's schedule
+#sets a user's schedule, uses setSchedule
 def setUserSchedule(email, schedule):
     return setSchedule("userschedule", "email", "'" + email + "'", schedule)
 
-#sets class's hours
+#sets class's hours, uses setSchedule
 def setClassSchedule(classID, schedule):
     return setSchedule("classhours", "classid", str(classID), schedule)
 
-#sets class's cached office hours
+#sets class's cached office hours, uses setSchedule
 def setClassOfficeHours(classID, schedule):
     return setSchedule("classofficehourscache", "classid", str(classID), schedule)
 
