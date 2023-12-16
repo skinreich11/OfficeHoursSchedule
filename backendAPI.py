@@ -493,7 +493,7 @@ class ScheduleBuildAndMatch:
         self.match_with_teacher(counter)
         for i in range(5): #for each day of the week
             day_hours = numpy.argmin(counter[i]) #find indexes of n highest elements #for number of office hours per day
-            if(counter[i][day_hours] == self.num_students):
+            if(counter[i][day_hours] >= self.num_students):
                 continue
             self.office_hours[i][day_hours] = 5   #set office_hours array at that timeslot of the n highest counter indicies to 5 (correlates to office hours)
         return self.office_hours
@@ -502,7 +502,7 @@ class ScheduleBuildAndMatch:
     def match_with_teacher(self, student_schedule):
         for i in range(5):#for each day of the week
             for j in range(12):#for each timeslot of each day
-                if(self.teacher_hours[i][j] == self.num_teachers): #if teacher and student are both available at a timeslot
+                if(self.teacher_hours[i][j] >= self.num_teachers): #if teacher and student are both available at a timeslot
                     student_schedule[i][j] = self.num_teachers #increment counter by 1 at this timeslot
 
 def convertToArray(schedule):
