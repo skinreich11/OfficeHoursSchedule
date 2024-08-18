@@ -1,3 +1,4 @@
+This is my team's office hours schedule helper app! Use this app to help schedule and manage your classess' office hours!
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
